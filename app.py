@@ -5,7 +5,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 import pandas as pd
 
-# --- 1. 設定 ---
+# --- 1. 核心安全與連線設定 ---
 AUTH_CODE = "641101"  
 HUB_NAME = "School_Counseling_Hub"
 SHEET_TAB = "Counseling_Logs"
@@ -13,7 +13,7 @@ MODEL_NAME = "models/gemini-2.0-flash"
 
 st.set_page_config(page_title="智慧輔導紀錄系統", layout="wide", page_icon="🏫")
 
-# --- 2. 視覺風格 (校長風格) ---
+# --- 2. 視覺風格 (校長風格：深色質感) ---
 st.markdown("""
     <style>
     .block-container { max-width: 1100px !important; padding-top: 2rem !important; margin: auto; }
@@ -25,6 +25,7 @@ st.markdown("""
     .risk-high { background-color: #bf616a; color: white; border: 1px solid #ff0000; }
     .risk-med { background-color: #ebcb8b; color: #2e3440; }
     .risk-low { background-color: #a3be8c; color: white; }
+    .stTextArea textarea { background-color: #2e3440 !important; color: #ffffff !important; border: 1px solid #4c566a !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -33,12 +34,13 @@ if 'authenticated' not in st.session_state: st.session_state.authenticated = Fal
 if not st.session_state.authenticated:
     _, col_m, _ = st.columns([1, 1.5, 1])
     with col_m:
-        st.markdown("<h2 style='text-align:center;'>🔐 導師驗證</h2>", unsafe_allow_html=True)
+        st.markdown("<div style='text-align:center;'><h1>🔐</h1><h2 style='color:#88c0d0;'>導師身分驗證</h2></div>", unsafe_allow_html=True)
         if st.text_input("授權碼：", type="password") == AUTH_CODE:
             st.session_state.authenticated = True
             st.rerun()
     st.stop()
 
+# --- 4. 初始化服務 ---
 @st.cache_resource
 def init_services():
     try:
@@ -52,10 +54,11 @@ def init_services():
 
 ai_engine, hub_engine = init_services()
 
-# --- 4. 主介面邏輯 ---
+# --- 5. 主介面內容 ---
 st.markdown('<h1 class="main-header">🏫 智慧輔導紀錄與親師生溝通系統</h1>', unsafe_allow_html=True)
 tab_input, tab_history, tab_report = st.tabs(["📝 觀察紀錄錄入", "🔍 個案歷程追蹤", "📊 數據彙整筆記"])
 
+# 確保狀態變數存在
 if 'analysis_1' not in st.session_state: st.session_state.analysis_1 = ""
 if 'analysis_2' not in st.session_state: st.session_state.analysis_2 = ""
 if 'risk_level' not in st.session_state: st.session_state.risk_level = "低"
@@ -63,46 +66,62 @@ if 'risk_level' not in st.session_state: st.session_state.risk_level = "低"
 with tab_input:
     c1, c2, c3 = st.columns([1.5, 1, 1])
     with c1: target_type = st.radio("【對象類型】", ["學生 (個人晤談)", "家長 (親師聯繫)"], horizontal=True)
-    with c2: stu_id = st.text_input("【學生代號】")
+    with c2: stu_id = st.text_input("【學生代號】", placeholder="例如：809-01")
     with c3: category = st.selectbox("【類別】", ["常規指導", "人際衝突", "情緒支持", "學習適應", "家長聯繫", "緊急事件"])
     
     raw_obs = st.text_area("【事實描述摘要】", height=150)
-    is_private = st.checkbox("🔒 機密模式 (雲端僅存入 [機密])")
+    is_private = st.checkbox("🔒 機密模式 (雲端將僅存入 [機密])")
 
+    st.markdown("<br>", unsafe_allow_html=True)
     col_b1, col_b2, col_b3 = st.columns(3)
+    
+    # 功能按鈕 1：優化紀錄
     if col_b1.button("📁 1. 生成優化紀錄文稿"):
-        st.session_state.analysis_1 = ai_engine.generate_content(f"請優化為正式輔導紀錄：{raw_obs}").text
-        
+        with st.spinner("生成中..."):
+            res = ai_engine.generate_content(f"請優化為專業且客觀的輔導紀錄，保持中立：\n{raw_obs}")
+            st.session_state.analysis_1 = res.text
+
+    # 功能按鈕 2：分析建議 (包含溫潤親師訊息)
     if col_b2.button("🎯 2. 生成分析與建議"):
         with st.spinner("分析中..."):
-            prompt = (f"分析內容並於第一行標註：【風險等級：高/中/低】。\n"
-                      f"隨後提供『行動建議』與一份『語氣溫潤且關懷的親師訊息』。內容：{raw_obs}")
+            prompt = (f"請分析以下內容。第一行必須標註：【風險等級：高/中/低】。\n"
+                      f"隨後提供：\n1. 初步處理行動建議。\n"
+                      f"2. 一份給家長的溝通訊息。要求：語氣溫潤、具備專業關懷，先肯定孩子，避免生硬口吻。\n\n"
+                      f"內容：\n{raw_obs}")
             res = ai_engine.generate_content(prompt).text
             st.session_state.analysis_2 = res
-            if "高" in res.split('\n')[0]: st.session_state.risk_level = "高"
-            elif "中" in res.split('\n')[0]: st.session_state.risk_level = "中"
+            # 自動判斷風險等級
+            first_line = res.split('\n')[0]
+            if "高" in first_line: st.session_state.risk_level = "高"
+            elif "中" in first_line: st.session_state.risk_level = "中"
             else: st.session_state.risk_level = "低"
 
+    # 功能按鈕 3：同步雲端 (嚴格對齊 7 欄位)
     if col_b3.button("💾 3. 同步至雲端手冊", type="primary"):
         if stu_id:
             try:
                 sheet = hub_engine.open(HUB_NAME).worksheet(SHEET_TAB)
                 fact_to_save = "[機密紀錄]" if is_private else raw_obs
-                # --- 精準對齊 7 欄位 A-G ---
+                # 嚴格對齊：日期(A), 學生代號(B), 對象類型(C), 類別(D), 風險等級(E), 原始觀察描述(F), AI分析結果(G)
                 row_data = [
-                    datetime.now().strftime("%Y/%m/%d %H:%M"), # A: 日期
-                    stu_id,                                    # B: 學生代號
-                    target_type,                               # C: 對象類型
-                    category,                                  # D: 類別
-                    st.session_state.risk_level,               # E: 風險等級
-                    fact_to_save,                              # F: 原始觀察描述
-                    f"{st.session_state.analysis_1}\n\n{st.session_state.analysis_2}" # G: AI分析結果
+                    datetime.now().strftime("%Y/%m/%d %H:%M"), 
+                    stu_id, 
+                    target_type, 
+                    category, 
+                    st.session_state.risk_level, 
+                    fact_to_save, 
+                    f"【優化文稿】\n{st.session_state.analysis_1}\n\n【分析建議】\n{st.session_state.analysis_2}"
                 ]
                 sheet.append_row(row_data)
-                st.success("✅ 資料已同步！")
-            except Exception as e: st.error(f"同步失敗：{e}")
-        else: st.error("請輸入學生代號")
+                st.balloons()
+                st.success("✅ 資料已精準同步至雲端表格！")
+            except Exception as e:
+                st.error(f"同步失敗：{e}")
+        else:
+            st.error("❌ 請輸入學生代號")
 
+    # 顯示分析結果
+    st.divider()
     res_c1, res_c2 = st.columns(2)
     with res_c1:
         st.markdown("**📋 優化文稿**")
@@ -112,8 +131,9 @@ with tab_input:
         st.markdown(f'**⚠️ 風險評估：** <span class="risk-badge {risk_color}">{st.session_state.risk_level}</span>', unsafe_allow_html=True)
         st.markdown(f'<div class="result-box">{st.session_state.analysis_2}</div>', unsafe_allow_html=True)
 
-# --- 5. 歷史紀錄追蹤 ---
+# --- 6. 歷史紀錄追蹤 (修正 Key 名稱以匹配試算表) ---
 with tab_history:
+    st.markdown("### 🔍 個案歷程追蹤")
     if st.button("🔄 刷新歷史紀錄"):
         try:
             sheet = hub_engine.open(HUB_NAME).worksheet(SHEET_TAB)
@@ -121,9 +141,27 @@ with tab_history:
             if data:
                 df = pd.DataFrame(data)
                 for index, row in df.iloc[::-1].iterrows():
-                    # --- 這裡的 Key 必須跟試算表標題完全一致 ---
-                    with st.expander(f"📅 {row['日期']} | {row['學生代號']} ({row['類別']})"):
-                        st.write(f"**事實描述：** {row['原始觀察描述']}")
+                    # 使用與試算表首列標題完全一致的字串作為 Key
+                    with st.expander(f"📅 {row['日期']} | {row['學生代號']} ({row['類別']} - 風險：{row['風險等級']})"):
+                        st.write(f"**事實描述：**\n{row['原始觀察描述']}")
                         st.info(f"**AI 分析結果：**\n{row['AI分析結果']}")
-            else: st.warning("尚無資料")
-        except Exception as e: st.error(f"讀取異常：{e}")
+            else:
+                st.warning("目前試算表中尚無資料。")
+        except Exception as e:
+            st.error(f"讀取異常，請確認試算表標題是否正確：{e}")
+
+# --- 7. 數據統計 ---
+with tab_report:
+    st.markdown("### 📊 輔導數據彙整")
+    if st.button("📈 重新生成統計圖表"):
+        try:
+            df = pd.DataFrame(hub_engine.open(HUB_NAME).worksheet(SHEET_TAB).get_all_records())
+            if not df.empty:
+                st.write("#### 類別分布")
+                st.bar_chart(df['類別'].value_counts())
+                st.write("#### 最近 5 筆紀錄摘要")
+                st.table(df[['日期', '學生代號', '類別', '風險等級']].tail(5))
+            else:
+                st.info("尚無足夠數據進行分析。")
+        except:
+            st.error("讀取數據失敗。")

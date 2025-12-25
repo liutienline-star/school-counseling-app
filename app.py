@@ -122,7 +122,7 @@ with tab_input:
         else: st.error("❌ 請輸入代號")
 
     st.divider()
-    st.markdown("### ✨ 第二步：導師輔助分析結果 (已調整為溫潤語氣)")
+    st.markdown("### ✨ 第二步：導師輔助分析結果")
     res_c1, res_c2 = st.columns(2)
     with res_c1:
         st.markdown("**📋 優化文稿**")

@@ -53,29 +53,38 @@ def init_all_services():
 
 ai_engine, hub_engine = init_all_services()
 
-# --- 4. 視覺風格優化 (包含針對 Label 顏色的修正) ---
+# --- 4. 視覺風格優化 (深度強化文字亮度) ---
 st.markdown("""
     <style>
-    /* 全域容器與背景 */
-    .block-container { 
-        max-width: 1400px !important; 
-        padding-top: 2rem; 
-        padding-bottom: 5rem; 
-    }
+    /* 基礎背景 */
     .stApp { 
         background-color: #242933; 
         color: #d8dee9; 
     }
     
-    /* 核心修正：讓所有元件的標籤字體變亮變清楚 */
-    .stWidgetLabel p, label, [data-testid="stWidgetLabel"] p {
-        color: #e5e9f0 !important; /* 極高亮度冰雪色 */
-        font-size: 1.15rem !important; /* 字體稍微放大 */
-        font-weight: 600 !important; /* 加粗提高辨識度 */
-        opacity: 1 !important; /* 確保不透明度為 100% */
-        margin-bottom: 8px !important;
+    /* 1. 強化所有元件上方的標籤文字 (如：學生代號、事件類別) */
+    [data-testid="stWidgetLabel"] p, label {
+        color: #FFFFFF !important; 
+        font-size: 1.15rem !important;
+        font-weight: 700 !important;
+        opacity: 1 !important;
     }
 
+    /* 2. 特別針對單選按鈕 (Radio) 的選項文字進行「強制增亮」 */
+    /* 這是修正「學生 (個人晤談)」與「家長 (親師聯繫)」看不清楚的關鍵 */
+    div[data-testid="stRadio"] label div[data-testid="stMarkdownContainer"] p {
+        color: #FFFFFF !important;
+        font-size: 1.1rem !important;
+        font-weight: 600 !important;
+        opacity: 1 !important;
+    }
+
+    /* 3. 針對文字區域的標題 (事實描述...) 進行額外補強 */
+    .stTextArea label p {
+        color: #FFFFFF !important;
+    }
+
+    /* 其他視覺調整 */
     .main-header { 
         text-align: center; 
         color: #88c0d0;
@@ -91,25 +100,11 @@ st.markdown("""
         border: 1px solid #434c5e; 
         margin-bottom: 15px;
         line-height: 1.8; 
-        font-size: 1.05rem;
     }
     
-    /* Tab 優化 */
-    .stTabs [data-baseweb="tab"] {
-        height: 50px;
-        background-color: #3b4252;
-        border-radius: 10px 10px 0 0;
-        color: #d8dee9;
-    }
     .stTabs [aria-selected="true"] { 
         background-color: #88c0d0 !important; 
         color: #2e3440 !important; 
-    }
-    
-    /* 輸入框內部顏色優化 */
-    input, textarea, select {
-        background-color: #3b4252 !important;
-        color: #eceff4 !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -118,21 +113,21 @@ st.markdown('<h1 class="main-header">🏫 智慧輔導紀錄與親師生溝通�
 
 tab_input, tab_history, tab_report = st.tabs(["📝 導師紀錄錄入與分析", "🔍 班級個案歷程追蹤", "📊 個人觀察彙整筆記"])
 
-# --- TAB 1: 紀錄錄入 (維持上下堆疊佈局) ---
+# --- TAB 1: 紀錄錄入 ---
 with tab_input:
     st.markdown("### ✍️ 第一步：觀察錄入與功能選擇")
     
-    # 橫向排列基礎資訊
-    row1_c1, row1_c2, row1_c3 = st.columns([1.2, 1, 1])
+    # 排版與輸入
+    row1_c1, row1_c2, row1_c3 = st.columns([1.3, 1, 1])
     with row1_c1:
+        # 這裡就是您提到的「學生 (個人晤談)」與「家長 (親師聯繫)」
         target_type = st.radio("對象：", ["學生 (個人晤談)", "家長 (親師聯繫)"], horizontal=True)
     with row1_c2:
         stu_id = st.text_input("學生代號", placeholder="例如：702-05")
     with row1_c3:
         category = st.selectbox("事件類別", ["常規指導", "人際衝突", "情緒支持", "學習適應", "家長聯繫", "緊急事件"])
     
-    # 全幅寬度的輸入視窗
-    raw_obs = st.text_area("事實描述或晤談紀錄摘要：", height=300, placeholder="身為導師，請在此紀錄觀察到的行為事實或溝通重點...")
+    raw_obs = st.text_area("事實描述或晤談紀錄摘要：", height=250, placeholder="在此輸入觀察事實...")
     
     # 功能按鈕
     btn_col1, btn_col2, btn_col3 = st.columns([1, 1, 1])
@@ -150,12 +145,11 @@ with tab_input:
 
     # --- 下方：AI 分析結果區 ---
     st.markdown("### ✨ 第二步：導師輔助分析結果")
-    
     res_col1, res_col2 = st.columns(2, gap="large")
     
     if gen_formal and raw_obs:
         with st.spinner("優化筆記中..."):
-            prompt = f"你是一位班級導師，請將以下筆記轉化為專業客觀的「導師觀察紀錄」，強調導師對學生的關懷與班級經營視角：\n{raw_obs}"
+            prompt = f"你是一位班級導師，請將以下筆記轉化為專業客觀的「導師觀察紀錄」：\n{raw_obs}"
             st.session_state.analysis_1 = ai_engine.generate_content(prompt).text
     
     if 'analysis_1' in st.session_state:
@@ -165,11 +159,11 @@ with tab_input:
             
     if "學生" in target_type and 'gen_plan' in locals() and gen_plan and raw_obs:
         with st.spinner("分析觀察重點中..."):
-            st.session_state.analysis_2 = ai_engine.generate_content(f"身為導師，請針對此內容提供「後續在班級中可觀察的行為重點」：\n{raw_obs}").text
+            st.session_state.analysis_2 = ai_engine.generate_content(f"身為導師，請針對此內容提供後續觀察重點：\n{raw_obs}").text
     
     if "家長" in target_type and 'gen_line' in locals() and gen_line and raw_obs:
         with st.spinner("擬定訊息中..."):
-            st.session_state.analysis_2 = ai_engine.generate_content(f"請以導師身份，撰寫一段溫馨且具合作感的親師聯繫訊息：\n{raw_obs}").text
+            st.session_state.analysis_2 = ai_engine.generate_content(f"請以導師身份，撰寫一段溫馨的親師聯繫訊息：\n{raw_obs}").text
 
     if 'analysis_2' in st.session_state:
         with res_col2:
@@ -177,49 +171,41 @@ with tab_input:
             if "家長" in target_type: st.code(st.session_state.analysis_2, language="text")
             else: st.markdown(f'<div class="record-box" style="border-left: 5px solid #88c0d0;">{st.session_state.analysis_2}</div>', unsafe_allow_html=True)
 
-    # 執行儲存功能
+    # 儲存邏輯
     if save_hub:
         if stu_id and ( 'analysis_1' in st.session_state or 'analysis_2' in st.session_state ):
             try:
                 sheet = hub_engine.open(HUB_NAME).worksheet(SHEET_TAB)
-                an1 = st.session_state.get('analysis_1', 'N/A')
-                an2 = st.session_state.get('analysis_2', 'N/A')
-                sheet.append_row([datetime.now().strftime("%Y-%m-%d %H:%M"), stu_id, target_type, category, raw_obs, f"{an1}\n\n{an2}"])
+                sheet.append_row([datetime.now().strftime("%Y-%m-%d %H:%M"), stu_id, target_type, category, raw_obs, f"{st.session_state.get('analysis_1','')}\n\n{st.session_state.get('analysis_2','')}"])
                 st.balloons()
-                st.success(f"✅ 紀錄已成功存入您的個人 Hub")
+                st.success("✅ 紀錄已成功存入個人 Hub")
                 for k in ['analysis_1', 'analysis_2']: 
                     if k in st.session_state: del st.session_state[k]
             except Exception as e: st.error(f"儲存失敗：{e}")
 
-# --- TAB 2 & 3 維持原有邏輯 ---
+# --- TAB 2 & 3 ---
 with tab_history:
     st.markdown("### 🔍 班級學生輔導歷程檢索")
-    search_id = st.text_input("輸入學生代號查詢：", key="case_search_final")
+    search_id = st.text_input("輸入學生代號查詢：")
     if search_id:
         try:
             sheet = hub_engine.open(HUB_NAME).worksheet(SHEET_TAB)
             records = sheet.get_all_records()
             matches = [r for r in records if str(r.get('學生代號', '')) == search_id]
             if matches:
-                st.info(f"📍 找到 {len(matches)} 筆歷史紀錄")
                 for r in matches[::-1]:
-                    with st.expander(f"📅 {r.get('日期')} | {r.get('對象')} | {r.get('類別')}"):
-                        st.markdown("**【導師筆記與 AI 分析建議】**")
+                    with st.expander(f"📅 {r.get('日期')} | {r.get('對象')}"):
                         st.markdown(f"<div class='record-box'>{r.get('AI 分析結果')}</div>", unsafe_allow_html=True)
             else: st.warning("查無紀錄。")
-        except Exception as e: st.error(f"查詢異常：{e}")
+        except: st.error("查詢異常")
 
 with tab_report:
-    st.markdown("### 📊 導師觀察彙整與個人筆記")
-    if st.button("🔄 更新彙整數據"):
+    st.markdown("### 📊 導師觀察彙整")
+    if st.button("🔄 更新數據"):
         try:
             sheet = hub_engine.open(HUB_NAME).worksheet(SHEET_TAB)
             df = pd.DataFrame(sheet.get_all_records())
             if not df.empty:
-                c_m1, c_m2 = st.columns([1, 2])
-                with c_m1:
-                    st.metric("本班累積案量", len(df))
-                    st.write(df['類別'].value_counts())
-                with c_m2:
-                    st.bar_chart(df['類別'].value_counts())
-        except Exception as e: st.error(f"數據異常：{e}")
+                st.metric("本班累積案量", len(df))
+                st.bar_chart(df['類別'].value_counts())
+        except: st.error("數據異常")

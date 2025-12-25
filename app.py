@@ -6,12 +6,12 @@ from datetime import datetime
 import pandas as pd
 
 # --- 1. 核心安全與連線設定 ---
-AUTH_CODE = "1225"  # <--- 校長，您可以在這裡修改您的專屬密碼 (例如校慶日期)
+AUTH_CODE = "1225"  
 HUB_NAME = "School_Counseling_Hub"
 SHEET_TAB = "Counseling_Logs"
 MODEL_NAME = "models/gemini-2.5-flash" 
 
-st.set_page_config(page_title="智慧輔導系統 | 安全授權版", layout="wide", page_icon="🛡️")
+st.set_page_config(page_title="智慧輔導系統 v1.7 | 雙軌優化版", layout="wide", page_icon="🛡️")
 
 # --- 2. 驗證邏輯 ---
 if 'authenticated' not in st.session_state:
@@ -24,7 +24,6 @@ def check_password():
     else:
         st.error("❌ 授權碼錯誤，請洽詢系統管理員。")
 
-# --- 3. 登入介面 ---
 if not st.session_state.authenticated:
     st.markdown("<br><br><br>", unsafe_allow_html=True)
     col_l, col_m, col_r = st.columns([1, 1.5, 1])
@@ -36,25 +35,9 @@ if not st.session_state.authenticated:
             </div>
         """, unsafe_allow_html=True)
         st.text_input("請輸入專屬授權碼：", type="password", key="pwd_input", on_change=check_password)
-        st.stop() # 停止執行後續代碼
+        st.stop()
 
-# --- 4. 驗證通過後的正式系統 (承襲 v1.5 所有功能) ---
-
-# --- 視覺風格 ---
-st.markdown("""
-    <style>
-    .block-container { max-width: 1200px !important; margin: auto; padding-top: 1rem; }
-    .stApp { background-color: #1a1d24; color: #eceff4; }
-    .main-header {
-        text-align: center; background: linear-gradient(120deg, #88c0d0 0%, #a3be8c 100%);
-        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-        font-weight: 600; font-size: 2.2rem; margin-bottom: 2rem;
-    }
-    .record-box { background-color: #2e3440; padding: 20px; border-radius: 12px; border: 1px solid #4c566a; }
-    </style>
-""", unsafe_allow_html=True)
-
-# --- 初始化服務 ---
+# --- 3. 初始化服務 ---
 @st.cache_resource
 def init_all_services():
     try:
@@ -70,58 +53,108 @@ def init_all_services():
 
 ai_engine, hub_engine = init_all_services()
 
-# --- 主介面 ---
+# --- 4. 視覺風格 ---
+st.markdown("""
+    <style>
+    .block-container { max-width: 1200px !important; margin: auto; padding-top: 1rem; }
+    .stApp { background-color: #1a1d24; color: #eceff4; }
+    .main-header {
+        text-align: center; background: linear-gradient(120deg, #88c0d0 0%, #a3be8c 100%);
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        font-weight: 600; font-size: 2.2rem; margin-bottom: 2rem;
+    }
+    .record-box { background-color: #2e3440; padding: 20px; border-radius: 12px; border: 1px solid #4c566a; }
+    .target-label { font-size: 1.2rem; font-weight: bold; color: #88c0d0; margin-bottom: 10px; }
+    </style>
+""", unsafe_allow_html=True)
+
+# --- 5. 主介面 ---
 st.markdown('<h1 class="main-header">🏫 智慧輔導紀錄與親師溝通系統</h1>', unsafe_allow_html=True)
-st.sidebar.success(f"🔑 已授權存取 (登入時間: {datetime.now().strftime('%H:%M')})")
+
+st.sidebar.success(f"🔑 已授權存取")
 if st.sidebar.button("登出系統"):
     st.session_state.authenticated = False
     st.rerun()
 
-tab_input, tab_report = st.tabs(["📝 紀錄錄入與功能按鈕", "📊 數據中樞與月報表"])
+tab_input, tab_report = st.tabs(["📝 紀錄錄入與 AI 分析", "📊 數據中樞與月報表"])
 
-# --- 第一分頁：紀錄錄入 (雙按鈕獨立版) ---
+# --- TAB 1: 錄入分頁 ---
 with tab_input:
     col_in, col_out = st.columns([1, 1.2])
+    
     with col_in:
-        st.subheader("📝 觀察錄入")
-        stu_id = st.text_input("學生代號", placeholder="例如：702-05")
-        category = st.selectbox("事件類別", ["常規指導", "人際衝突", "情緒支持", "學習適應", "家長聯繫"])
-        raw_obs = st.text_area("事實描述：", height=280)
+        st.subheader("📝 晤談與觀察錄入")
         
+        # 新增對象選擇
+        target_type = st.radio("【第一步】請選擇晤談對象：", ["學生 (個案晤談)", "家長 (親師溝通)"], horizontal=True)
+        
+        stu_id = st.text_input("學生代號", placeholder="例如：702-05")
+        category = st.selectbox("事件類別", ["常規指導", "人際衝突", "情緒支持", "學習適應", "家長聯繫", "緊急事件"])
+        raw_obs = st.text_area("晤談或事實描述：", height=250, placeholder="請輸入本次對話或觀察到的重點...")
+        
+        st.markdown("---")
+        # 根據對象顯示不同按鈕
         btn_col1, btn_col2 = st.columns(2)
-        with btn_col1: gen_record = st.button("📁 生成專業紀錄")
-        with btn_col2: gen_line = st.button("💬 生成 LINE 草稿")
+        
+        if "學生" in target_type:
+            with btn_col1: gen_formal = st.button("📁 生成專業晤談紀錄")
+            with btn_col2: gen_plan = st.button("🎯 生成輔導計畫建議")
+        else:
+            with btn_col1: gen_formal = st.button("📁 生成專業親師紀錄")
+            with btn_col2: gen_line = st.button("💬 生成 LINE 溝通草稿")
 
     with col_out:
-        if gen_record and raw_obs:
-            with st.spinner("轉譯中..."):
-                st.session_state.formal_record = ai_engine.generate_content(f"請將以下觀察轉化為專業輔導紀錄：\n{raw_obs}").text
-        if gen_line and raw_obs:
-            with st.spinner("擬稿中..."):
-                st.session_state.line_draft = ai_engine.generate_content(f"請針對以下內容撰寫給家長的 LINE 訊息，強調親師合作：\n{raw_obs}").text
+        # A. 生成正式紀錄邏輯 (共用)
+        if gen_formal and raw_obs:
+            with st.spinner("AI 轉譯專業格式中..."):
+                role_desc = "輔導老師針對學生的晤談摘要" if "學生" in target_type else "導師與家長的通聯紀錄"
+                prompt = f"你是一位專業輔導老師，請將以下內容轉化為「{role_desc}」，要求客觀中立、包含心理動機分析：\n{raw_obs}"
+                st.session_state.analysis_1 = ai_engine.generate_content(prompt).text
+        
+        # B. 學生專屬：輔導計畫
+        if "學生" in target_type and 'gen_plan' in locals() and gen_plan and raw_obs:
+            with st.spinner("生成輔導計畫建議..."):
+                prompt = f"身為專業輔導員，針對此學生的對話內容，請給予導師具體的「下階段輔導計畫」與「班級經營建議」：\n{raw_obs}"
+                st.session_state.analysis_2 = ai_engine.generate_content(prompt).text
+        
+        # C. 家長專屬：LINE草稿
+        if "家長" in target_type and 'gen_line' in locals() and gen_line and raw_obs:
+            with st.spinner("撰寫 LINE 草稿中..."):
+                prompt = f"請撰寫一段適合傳給家長的 LINE 訊息。語氣溫柔、強調親師合作、具體轉達事件並提出共同協助的邀請：\n{raw_obs}"
+                st.session_state.analysis_2 = ai_engine.generate_content(prompt).text
 
-        if 'formal_record' in st.session_state:
-            st.markdown("##### 📁 專業輔導紀錄分析")
-            st.markdown(f'<div class="record-box">{st.session_state.formal_record}</div>', unsafe_allow_html=True)
-        if 'line_draft' in st.session_state:
-            st.markdown("##### 🟢 LINE 親師溝通草稿")
-            st.code(st.session_state.line_draft, language="text")
+        # 顯示結果
+        if 'analysis_1' in st.session_state:
+            label = "📁 專業晤談紀錄" if "學生" in target_type else "📁 親師通聯專業紀錄"
+            st.markdown(f"##### {label}")
+            st.markdown(f'<div class="record-box">{st.session_state.analysis_1}</div>', unsafe_allow_html=True)
+            
+        if 'analysis_2' in st.session_state:
+            label = "🎯 下階段輔導計畫建議" if "學生" in target_type else "🟢 LINE 親師溝通金句"
+            st.markdown(f"##### {label}")
+            if "家長" in target_type:
+                st.code(st.session_state.analysis_2, language="text")
+            else:
+                st.markdown(f'<div class="record-box" style="border-left: 5px solid #88c0d0;">{st.session_state.analysis_2}</div>', unsafe_allow_html=True)
 
     st.divider()
+    # 儲存邏輯修改
     if st.button("💾 同步至雲端 Hub"):
-        if stu_id and ( 'formal_record' in st.session_state or 'line_draft' in st.session_state ):
+        if stu_id and ( 'analysis_1' in st.session_state or 'analysis_2' in st.session_state ):
             try:
                 sheet = hub_engine.open(HUB_NAME).worksheet(SHEET_TAB)
-                f_rec = st.session_state.get('formal_record', '未生成')
-                l_dra = st.session_state.get('line_draft', '未生成')
-                sheet.append_row([datetime.now().strftime("%Y-%m-%d %H:%M"), stu_id, category, raw_obs, f"【紀錄】{f_rec}\n【LINE】{l_dra}"])
+                an1 = st.session_state.get('analysis_1', 'N/A')
+                an2 = st.session_state.get('analysis_2', 'N/A')
+                # 存入時增加「對象」欄位，方便區分
+                now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+                sheet.append_row([now_str, stu_id, target_type, category, raw_obs, f"{an1}\n\n{an2}"])
                 st.balloons()
-                st.success("✅ 數據已存入 Hub！")
-                for k in ['formal_record', 'line_draft']: 
-                    if k in st.session_state: del st.session_state[k]
+                st.success(f"✅ {target_type}紀錄已成功存入 Hub！")
+                if 'analysis_1' in st.session_state: del st.session_state.analysis_1
+                if 'analysis_2' in st.session_state: del st.session_state.analysis_2
             except Exception as e: st.error(f"儲存失敗：{e}")
 
-# --- 第二分頁：月報表功能 ---
+# --- TAB 2: 月報表 (增加對象分析) ---
 with tab_report:
     st.subheader("📊 全校輔導大數據彙整")
     if st.button("🔄 重新整理本月報表"):
@@ -132,13 +165,24 @@ with tab_report:
                 df['日期'] = pd.to_datetime(df['日期'])
                 now = datetime.now()
                 this_month_df = df[(df['日期'].dt.month == now.month) & (df['日期'].dt.year == now.year)]
+                
                 if not this_month_df.empty:
-                    c1, c2 = st.columns([1, 1.5])
+                    c1, c2, c3 = st.columns(3)
                     with c1:
+                        st.write("各類別件數")
                         st.bar_chart(this_month_df['類別'].value_counts())
-                        st.metric("本月累計個案", len(this_month_df))
                     with c2:
-                        report_res = ai_engine.generate_content(f"請針對本月輔導數據給予校長行政建議：{this_month_df['類別'].value_counts().to_dict()}")
-                        st.success(report_res.text)
+                        st.write("對象佔比")
+                        # 這裡修正如果沒有對象欄位的舊資料處理
+                        if '對象' in this_month_df.columns:
+                            st.write(this_month_df['對象'].value_counts())
+                        else:
+                            st.info("舊有資料無對象標籤")
+                    with c3:
+                        st.metric("本月累計總案量", len(this_month_df))
+                    
+                    st.divider()
+                    report_res = ai_engine.generate_content(f"請根據本月數據給予校長三點行政管理建議：{this_month_df.to_string()}")
+                    st.success(report_res.text)
                 else: st.info("本月暫無數據。")
         except Exception as e: st.error(f"報表異常：{e}")

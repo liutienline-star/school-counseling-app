@@ -5,7 +5,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 import pandas as pd
 
-# --- 1. 核心安全與連線設定 (功能完全維持) ---
+# --- 1. 核心安全與連線設定 (訴求：核心不變) ---
 AUTH_CODE = "1225"  
 HUB_NAME = "School_Counseling_Hub"
 SHEET_TAB = "Counseling_Logs"
@@ -13,13 +13,13 @@ MODEL_NAME = "models/gemini-2.5-flash"
 
 st.set_page_config(page_title="智慧輔導紀錄系統", layout="wide", page_icon="🏫")
 
-# --- 2. 視覺風格優化 (限制寬度、高對比、顏色標籤) ---
+# --- 2. 視覺風格優化 (橫向視窗、限制寬度、文字純白) ---
 st.markdown("""
     <style>
-    .block-container { max-width: 1000px !important; padding-top: 2rem !important; margin: auto; }
+    .block-container { max-width: 1100px !important; padding-top: 2rem !important; margin: auto; }
     .stApp { background-color: #1a1c23; color: #e5e9f0; }
     
-    /* 標籤純白加粗 */
+    /* 標籤文字強制純白 */
     [data-testid="stWidgetLabel"] p, label, .stMarkdown p {
         color: #FFFFFF !important;
         font-weight: 700 !important;
@@ -39,16 +39,21 @@ st.markdown("""
         font-weight: 800; font-size: 2.5rem; margin-bottom: 2rem;
     }
 
+    /* 橫向卡片樣式 */
+    .result-card {
+        background-color: #2e3440;
+        padding: 20px;
+        border-radius: 15px;
+        border: 1px solid #4c566a;
+        height: 100%;
+        min-height: 250px;
+    }
+
     .stTextArea textarea { background-color: #2e3440 !important; color: #ffffff !important; border: 1px solid #4c566a !important; }
-    
-    /* 輔助顏色標籤樣式 */
-    .tag-urgent { color: #ff6b6b; font-weight: bold; }
-    .tag-normal { color: #88c0d0; }
-    .tag-support { color: #ffd93d; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 3. 驗證邏輯 (無 rerun 警告版) ---
+# --- 3. 驗證邏輯 (核心功能不變) ---
 if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
 
@@ -92,77 +97,117 @@ with tab_input:
     with c3: category = st.selectbox("【事件類別】", ["常規指導", "人際衝突", "情緒支持", "學習適應", "家長聯繫", "緊急事件"])
     
     # [建議 2]: 快速錄入標籤
-    quick_tags = st.multiselect("💡 快速標籤 (點選後可自動加入下方內容)", ["表現優異", "情緒波動", "學習退步", "同儕糾紛", "家長已讀", "建議介入"])
+    quick_tags = st.multiselect("💡 常用快速標籤 (點選後會自動填入下方描述)", ["表現優異", "情緒波動", "學習退步", "同儕糾紛", "親師溝通順暢", "建議介入"])
     tag_str = " ".join([f"[{t}]" for t in quick_tags])
     
-    raw_obs = st.text_area("【事實描述或晤談紀錄摘要】", value=tag_str if tag_str else "", height=250, placeholder="在此輸入觀察事實... (建議：可使用手機語音輸入)")
+    # 組合內容
+    raw_obs = st.text_area("【事實描述或晤談紀錄摘要】", value=tag_str if tag_str else "", height=250, placeholder="在此輸入觀察事實...")
     
-    # [建議 4]: 去識別化機制
-    is_private = st.checkbox("🔒 機密紀錄 (存檔時隱藏原始事實，僅保留 AI 分析結果)")
+    # [建議 4]: 去識別化勾選
+    is_private = st.checkbox("🔒 啟用機密紀錄模式 (存檔時會隱藏此區事實描述，僅保留 AI 分析)")
 
     st.markdown("<br>", unsafe_allow_html=True)
     b1, b2, b3 = st.columns(3)
     with b1: gen_formal = st.button("📁 1. 生成優化紀錄文稿", use_container_width=True)
     with b2:
-        if "學生" in target_type: gen_plan = st.button("🎯 2. 生成後續觀察重點", use_container_width=True)
-        else: gen_line = st.button("💬 2. 撰寫親師合作訊息", use_container_width=True)
+        if "學生" in target_type:
+            gen_action = st.button("🎯 2. 生成後續觀察重點", use_container_width=True)
+        else:
+            gen_action = st.button("💬 2. 撰寫親師合作訊息", use_container_width=True)
     with b3: save_hub = st.button("💾 3. 同步至雲端手冊", use_container_width=True, type="primary")
 
+    # --- 關鍵 AI 觸發邏輯修正 ---
+    if gen_formal and raw_obs:
+        with st.spinner("AI 文稿優化中..."):
+            res = ai_engine.generate_content(f"請將以下導師筆記優化為正式、客觀的輔導紀錄：\n{raw_obs}")
+            st.session_state.analysis_1 = res.text
+
+    if gen_action and raw_obs:
+        with st.spinner("AI 分析建議中..."):
+            if "學生" in target_type:
+                prompt = f"請針對此個案事實，提供後續觀察重點與介入建議：\n{raw_obs}"
+            else:
+                prompt = f"請根據此聯繫紀錄，撰寫一段溫馨且專業的親師聯繫訊息：\n{raw_obs}"
+            res = ai_engine.generate_content(prompt)
+            st.session_state.analysis_2 = res.text
+
     st.divider()
+    
+    # --- 第二步：結果顯示 (強制橫向對話視窗) ---
     st.markdown("### ✨ 第二步：導師輔助分析結果")
+    
     res_l, res_r = st.columns(2, gap="large")
     
-    if gen_formal and raw_obs:
-        with st.spinner("AI 處理中..."):
-            st.session_state.analysis_1 = ai_engine.generate_content(f"身為導師，請優化以下紀錄：\n{raw_obs}").text
-    
-    if 'analysis_1' in st.session_state:
-        with res_l:
-            st.info("📋 **建議紀錄文稿**")
-            st.markdown(f'<div style="background-color:#2e3440; padding:20px; border-radius:15px; border:1px solid #4c566a; line-height:1.7;">{st.session_state.analysis_1}</div>', unsafe_allow_html=True)
-            # [建議 3]: 匯出功能
-            st.download_button("📥 下載此份正式文稿 (.txt)", data=st.session_state.analysis_1, file_name=f"{stu_id}_觀察紀錄.txt")
+    with res_l:
+        st.markdown("**📋 建議紀錄文稿**")
+        if 'analysis_1' in st.session_state:
+            st.markdown(f'<div class="result-card">{st.session_state.analysis_1}</div>', unsafe_allow_html=True)
+            st.download_button("📥 下載文稿 (.txt)", data=st.session_state.analysis_1, file_name=f"{stu_id}_紀錄.txt", key="dl1")
+        else:
+            st.markdown('<div class="result-card" style="color:#4c566a;">點擊「1. 生成優化紀錄文稿」後顯示</div>', unsafe_allow_html=True)
 
-    if 'analysis_2' in st.session_state:
-        with res_r:
-            st.success(f"🎯 **{'導師行動建議' if '學生' in target_type else '親師合作草稿'}**")
-            if "家長" in target_type: st.code(st.session_state.analysis_2)
-            else: st.markdown(f'<div style="background-color:#2e3440; padding:20px; border-radius:15px; border-left:5px solid #88c0d0; line-height:1.7;">{st.session_state.analysis_2}</div>', unsafe_allow_html=True)
+    with res_r:
+        label_text = "🎯 導師行動建議" if "學生" in target_type else "💬 親師合作草稿"
+        st.markdown(f"**{label_text}**")
+        if 'analysis_2' in st.session_state:
+            st.markdown(f'<div class="result-card" style="border-left:5px solid #88c0d0;">{st.session_state.analysis_2}</div>', unsafe_allow_html=True)
+            st.download_button("📥 下載建議 (.txt)", data=st.session_state.analysis_2, file_name=f"{stu_id}_建議.txt", key="dl2")
+        else:
+            st.markdown('<div class="result-card" style="color:#4c566a;">點擊「2. 生成分析建議」後顯示</div>', unsafe_allow_html=True)
 
-    if save_hub and stu_id:
-        try:
-            sheet = hub_engine.open(HUB_NAME).worksheet(SHEET_TAB)
-            # 處理隱私模式
-            fact_to_save = "[內容已去識別化保護]" if is_private else raw_obs
-            sheet.append_row([datetime.now().strftime("%Y-%m-%d %H:%M"), stu_id, target_type, category, fact_to_save, f"{st.session_state.get('analysis_1','')}\n\n{st.session_state.get('analysis_2','')}"])
-            st.balloons(); st.success("✅ 紀錄已成功存入雲端 Hub")
-            for k in ['analysis_1', 'analysis_2']: 
-                if k in st.session_state: del st.session_state[k]
-        except Exception as e: st.error(f"儲存失敗：{e}")
+    # --- 儲存邏輯修正 (核心功能) ---
+    if save_hub:
+        if not stu_id:
+            st.error("❌ 儲存失敗：請先輸入【學生代號】")
+        else:
+            try:
+                sheet = hub_engine.open(HUB_NAME).worksheet(SHEET_TAB)
+                # 判斷是否為機密紀錄
+                fact_to_save = "[此筆為機密紀錄，內容已隱藏]" if is_private else raw_obs
+                
+                # 彙整內容
+                an1 = st.session_state.get('analysis_1', '(未生成)')
+                an2 = st.session_state.get('analysis_2', '(未生成)')
+                
+                sheet.append_row([
+                    datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    stu_id,
+                    target_type,
+                    category,
+                    fact_to_save,
+                    f"【優化文稿】\n{an1}\n\n【行動建議】\n{an2}"
+                ])
+                st.balloons()
+                st.success(f"✅ 紀錄已成功同步至雲端手冊 ({HUB_NAME})")
+                
+                # 存完後不清除 analysis，讓導師還能看，直到重新整理
+            except Exception as e:
+                st.error(f"雲端同步失敗，請檢查權限或試算表名稱：{e}")
 
+# --- 後續 Tab (查詢與統計) ---
 with tab_history:
-    st.markdown("### 🔍 班級個案歷程查詢")
-    search_id = st.text_input("輸入代號查詢 (例：809-01)：")
+    st.markdown("### 🔍 個案歷程查詢")
+    search_id = st.text_input("輸入代號 (例如：809-01)：", key="search_bar")
     if search_id:
         try:
             sheet = hub_engine.open(HUB_NAME).worksheet(SHEET_TAB)
             records = sheet.get_all_records()
             matches = [r for r in records if str(r.get('學生代號', '')) == search_id]
-            for r in matches[::-1]:
-                # [建議 1]: 顏色與標籤區分
-                icon = "🚨" if r.get('類別') == "緊急事件" else "💡"
-                with st.expander(f"{icon} {r.get('日期')} | {r.get('類別')}"):
-                    st.write(f"**對象：** {r.get('對象')}")
-                    st.write(f"**事實：** {r.get('事實描述')}")
-                    st.markdown(f"<div style='background-color:#2e3440; padding:15px; border-radius:10px;'>{r.get('AI 分析結果')}</div>", unsafe_allow_html=True)
-        except: st.error("讀取異常")
+            if matches:
+                for r in matches[::-1]:
+                    icon = "🚨" if r.get('類別') == "緊急事件" else "📁"
+                    with st.expander(f"{icon} {r.get('日期')} | {r.get('類別')} | {r.get('對象')}"):
+                        st.write(f"**原始事實：** {r.get('事實描述')}")
+                        st.info(f"**AI 分析回顧：**\n{r.get('AI 分析結果')}")
+            else: st.warning("查無此學生的歷史紀錄。")
+        except: st.error("連線異常")
 
 with tab_report:
-    st.markdown("### 📊 班級數據統計")
-    if st.button("🔄 更新統計圖表"):
+    st.markdown("### 📊 班級觀察數據統計")
+    if st.button("🔄 載入最新數據分析"):
         try:
             sheet = hub_engine.open(HUB_NAME).worksheet(SHEET_TAB)
             df = pd.DataFrame(sheet.get_all_records())
-            st.metric("累積輔導筆數", len(df))
+            st.metric("本學期累積筆數", len(df))
             st.bar_chart(df['類別'].value_counts())
-        except: st.error("統計失敗")
+        except: st.error("統計數據讀取失敗")

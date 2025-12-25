@@ -5,7 +5,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 import pandas as pd
 
-# --- 1. 核心安全與連線設定 (維持校長設定) ---
+# --- 1. 核心安全與連線設定 ---
 AUTH_CODE = "641101"  
 HUB_NAME = "School_Counseling_Hub"
 SHEET_TAB = "Counseling_Logs"
@@ -13,7 +13,7 @@ MODEL_NAME = "models/gemini-2.0-flash"
 
 st.set_page_config(page_title="智慧輔導紀錄系統", layout="wide", page_icon="🏫")
 
-# --- 2. 視覺風格優化 ---
+# --- 2. 視覺風格優化 (維持校長風格) ---
 st.markdown("""
     <style>
     .block-container { max-width: 1100px !important; padding-top: 2rem !important; margin: auto; }
@@ -81,25 +81,25 @@ with tab_input:
     if b2.button("🎯 2. 生成分析與建議"):
         with st.spinner("撰寫中..."):
             if "學生" in target_type:
-                prompt = (f"請針對以下內容分析。第一行標註：【風險等級：高/中/低】。\n"
-                          f"分析內容要求：\n"
-                          f"1. 評估情感與行為風險。\n"
-                          f"2. 提供導師『初步行動建議』(請列出1-3項具體步驟)。\n\n"
-                          f"文字內容如下：\n{raw_obs}")
+                prompt = (f"請分析內容。第一行標註：【風險等級：高/中/低】。\n"
+                          f"分析要求：1.風險評估。2.提供1-3項具體行動建議。內容：\n{raw_obs}")
             else:
-                # --- 【修正點】：刪除 Line 口語建議，保留行動建議與正式訊息 ---
-                prompt = (f"請針對以下內容進行分析。第一行標註：【風險等級：高/中/低】。\n"
-                          f"分析內容要求：\n"
-                          f"1. 提供導師面對此家長或事件的『初步行動建議』(1-3項)。\n"
-                          f"2. 撰寫一份『正式親師訊息』：\n"
-                          f"   - 格式正式、用語禮貌、展現專業關懷。\n"
-                          f"   - 內容需包含：肯定孩子、陳述事實、期待親師合作事項。\n\n"
-                          f"※ 嚴禁使用口語化或非正式的 LINE 語助詞。內容如下：\n{raw_obs}")
+                # --- 【核心修正】：調整親師訊息的語氣為「溫潤專業版」 ---
+                prompt = (f"請分析以下內容。第一行標註：【風險等級：高/中/低】。\n"
+                          f"分析要求：\n"
+                          f"1. 提供導師面對家長或此事件的『初步處理行動建議』(1-3點)。\n"
+                          f"2. 撰寫一份『給家長的溝通訊息』：\n"
+                          f"   - 【語氣規範】：溫潤、有溫度、展現專業關懷。不要像公文，也不要太隨便。\n"
+                          f"   - 【內容結構】：\n"
+                          f"     a. 先簡單肯定孩子（破冰）。\n"
+                          f"     b. 以關心的視角敘述當前觀察到的現象或事件。\n"
+                          f"     c. 邀請家長一同觀察或合作，並結尾表示感謝與支持。\n\n"
+                          f"內容如下：\n{raw_obs}")
             
             res_text = ai_engine.generate_content(prompt).text
             st.session_state.analysis_2 = res_text
             
-            # 提取風險係數 (解析第一行)
+            # 解析風險等級
             first_line = res_text.split('\n')[0]
             if "高" in first_line: st.session_state.risk_level = "高"
             elif "中" in first_line: st.session_state.risk_level = "中"
@@ -117,26 +117,26 @@ with tab_input:
                     fact, 
                     f"{st.session_state.analysis_1}\n\n{st.session_state.analysis_2}" 
                 ])
-                st.balloons(); st.success("✅ 已同步至雲端表格")
+                st.balloons(); st.success("✅ 已成功同步")
             except Exception as e: st.error(f"同步失敗：{e}")
-        else: st.error("❌ 請輸入學生代號")
+        else: st.error("❌ 請輸入代號")
 
     st.divider()
-    st.markdown("### ✨ 第二步：導師輔助分析結果 (含正式溝通文案)")
+    st.markdown("### ✨ 第二步：導師輔助分析結果 (已調整為溫潤語氣)")
     res_c1, res_c2 = st.columns(2)
     with res_c1:
         st.markdown("**📋 優化文稿**")
         st.markdown(f'<div class="result-box">{st.session_state.analysis_1 or "等待生成..."}</div>', unsafe_allow_html=True)
     with res_c2:
-        st.markdown("**🎯 行動建議與親師溝通**")
+        st.markdown("**🎯 行動建議與親師訊息**")
         risk_color = "risk-high" if st.session_state.risk_level == "高" else ("risk-med" if st.session_state.risk_level == "中" else "risk-low")
         st.markdown(f'<div class="risk-badge {risk_color}">⚠️ 風險評估：{st.session_state.risk_level}</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="result-box" style="border-left:5px solid #88c0d0;">{st.session_state.analysis_2 or "等待生成..."}</div>', unsafe_allow_html=True)
 
-# --- Tab 2 & 3 (保持原樣) ---
+# --- 歷史與統計 (維持不變) ---
 with tab_history:
     st.markdown("### 🔍 個案歷程查詢")
-    q_id = st.text_input("輸入代號查詢：")
+    q_id = st.text_input("輸入代號：")
     if q_id:
         try:
             sheet = hub_engine.open(HUB_NAME).worksheet(SHEET_TAB)
@@ -144,14 +144,13 @@ with tab_history:
             matches = [r for r in recs if str(r.get('學生代號','')) == q_id]
             for r in matches[::-1]:
                 with st.expander(f"📅 {r.get('日期')} | {r.get('類別')} (風險：{r.get('風險等級')})"):
-                    st.write(f"事實描述：{r.get('事實描述')}")
-                    st.info(f"AI內容：\n{r.get('AI 分析結果')}")
-        except: st.error("讀取失敗")
+                    st.write(f"事實：{r.get('事實描述')}")
+                    st.info(f"AI：\n{r.get('AI 分析結果')}")
+        except: st.error("查詢失敗")
 
 with tab_report:
     if st.button("🔄 更新統計圖表"):
         try:
-            sheet = hub_engine.open(HUB_NAME).worksheet(SHEET_TAB)
-            df = pd.DataFrame(sheet.get_all_records())
+            df = pd.DataFrame(hub_engine.open(HUB_NAME).worksheet(SHEET_TAB).get_all_records())
             st.bar_chart(df['類別'].value_counts())
-        except: st.error("讀取統計數據失敗")
+        except: st.error("統計失敗")

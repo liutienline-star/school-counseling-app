@@ -6,7 +6,7 @@ from datetime import datetime
 import pandas as pd
 
 # --- 1. 核心安全與連線設定 (功能與密碼絕對維持) ---
-AUTH_CODE = "1225"  
+AUTH_CODE = "641101"  
 HUB_NAME = "School_Counseling_Hub"
 SHEET_TAB = "Counseling_Logs"
 MODEL_NAME = "models/gemini-2.5-flash" 

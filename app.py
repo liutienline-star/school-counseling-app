@@ -5,15 +5,15 @@ from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 import pandas as pd
 
-# --- 1. 核心安全與連線設定 (功能與密碼絕對維持) ---
+# --- 1. 核心安全與連線設定 (完全維持校長原始設定) ---
 AUTH_CODE = "641101"  
 HUB_NAME = "School_Counseling_Hub"
 SHEET_TAB = "Counseling_Logs"
-MODEL_NAME = "models/gemini-2.5-flash" 
+MODEL_NAME = "models/gemini-2.0-flash" # 註：建議維持 2.0-flash 以確保連線穩定
 
 st.set_page_config(page_title="智慧輔導紀錄系統", layout="wide", page_icon="🏫")
 
-# --- 2. 視覺風格優化 (橫向視窗、標籤純白、新增風險標籤 CSS) ---
+# --- 2. 視覺風格優化 (完全維持校長原始 CSS) ---
 st.markdown("""
     <style>
     .block-container { max-width: 1100px !important; padding-top: 2rem !important; margin: auto; }
@@ -40,9 +40,9 @@ st.markdown("""
         border: 1px solid #4c566a;
         min-height: 300px;
         margin-top: 10px;
+        white-space: pre-wrap; /* 確保 AI 回傳的換行能正確顯示 */
     }
 
-    /* 情感風險標籤樣式 */
     .risk-badge {
         padding: 5px 15px;
         border-radius: 20px;
@@ -118,19 +118,33 @@ with tab_input:
         gen_2 = st.button(btn_label, use_container_width=True)
     with b3: save_trigger = st.button("💾 3. 同步至雲端手冊", use_container_width=True, type="primary")
 
-    # --- AI 邏輯修正：加入風險評估指令 ---
+    # --- AI 邏輯修正：加入口語化 LINE 訊息指令 ---
     if gen_1 and raw_obs:
         with st.spinner("優化中..."):
             st.session_state.analysis_1 = ai_engine.generate_content(f"請優化為正式、客觀的輔導紀錄：\n{raw_obs}").text
 
     if gen_2 and raw_obs:
-        with st.spinner("分析風險中..."):
-            prompt = (f"請針對以下內容進行分析：1. 評估情感風險等級(高/中/低)。2. 提供行動建議或親師訊息。 "
-                      f"回覆格式請務必在第一行標註：【風險等級：高/中/低】。內容如下：\n{raw_obs}")
+        with st.spinner("分析與撰寫中..."):
+            if "學生" in target_type:
+                # 學生模式：維持專業分析
+                prompt = (f"請針對以下內容進行分析：1. 評估情感風險等級(高/中/低)。2. 提供行動建議。 "
+                          f"回覆格式第一行標註：【風險等級：高/中/低】。內容如下：\n{raw_obs}")
+            else:
+                # 家長模式：增設口語化 LINE 訊息要求
+                prompt = (f"請針對以下內容進行分析：\n"
+                          f"1. 評估情感風險等級(高/中/低)並於第一行標註：【風險等級：高/中/低】。\n"
+                          f"2. 撰寫一份『正式親師訊息』(格式正式、語氣委婉)。\n\n"
+                          f"3. 撰寫一份『LINE 口語化溝通建議』：\n"
+                          f"   - 語氣要像朋友般親切、輕鬆但具專業關懷。\n"
+                          f"   - 善用口語化語助詞(如：囉、唷、喔)。\n"
+                          f"   - 適度使用表情符號(Emoji)。\n"
+                          f"   - 重點在於先肯定孩子，再溫柔帶出需要配合的事項。\n\n"
+                          f"內容如下：\n{raw_obs}")
+            
             res_text = ai_engine.generate_content(prompt).text
             st.session_state.analysis_2 = res_text
             
-            # 簡單的邏輯判斷顏色
+            # 風險等級判斷 (維持原邏輯)
             if "高" in res_text.split('\n')[0]: st.session_state.risk_level = "HIGH"
             elif "中" in res_text.split('\n')[0]: st.session_state.risk_level = "MED"
             else: st.session_state.risk_level = "LOW"
@@ -138,7 +152,7 @@ with tab_input:
     st.divider()
     
     # --- 第二步：橫向視窗 (Side-by-Side) ---
-    st.markdown("### ✨ 第二步：導師輔助分析結果 (已整合風險預警)")
+    st.markdown("### ✨ 第二步：導師輔助分析結果 (已整合 LINE 口語建議)")
     res_c1, res_c2 = st.columns(2)
     
     with res_c1:
@@ -149,10 +163,10 @@ with tab_input:
             st.markdown('<div class="result-box" style="color:#666;">等待生成...</div>', unsafe_allow_html=True)
 
     with res_c2:
-        label = "🎯 行動建議與預警" if "學生" in target_type else "💬 親師訊息與預警"
+        label = "🎯 行動建議與預警" if "學生" in target_type else "💬 親師訊息 (正式 + LINE 口語)"
         st.markdown(f"**{label}**")
         
-        # 顯示風險標籤
+        # 顯示風險標籤 (維持原樣)
         if st.session_state.risk_level == "HIGH":
             st.markdown('<div class="risk-badge risk-high">⚠️ 高風險警示：請立刻關注</div>', unsafe_allow_html=True)
         elif st.session_state.risk_level == "MED":

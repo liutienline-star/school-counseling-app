@@ -53,9 +53,10 @@ def init_all_services():
 
 ai_engine, hub_engine = init_all_services()
 
-# --- 4. 視覺風格優化 (護眼深色系) ---
+# --- 4. 視覺風格優化 (包含針對 Label 顏色的修正) ---
 st.markdown("""
     <style>
+    /* 全域容器與背景 */
     .block-container { 
         max-width: 1400px !important; 
         padding-top: 2rem; 
@@ -65,6 +66,16 @@ st.markdown("""
         background-color: #242933; 
         color: #d8dee9; 
     }
+    
+    /* 核心修正：讓所有元件的標籤字體變亮變清楚 */
+    .stWidgetLabel p, label, [data-testid="stWidgetLabel"] p {
+        color: #e5e9f0 !important; /* 極高亮度冰雪色 */
+        font-size: 1.15rem !important; /* 字體稍微放大 */
+        font-weight: 600 !important; /* 加粗提高辨識度 */
+        opacity: 1 !important; /* 確保不透明度為 100% */
+        margin-bottom: 8px !important;
+    }
+
     .main-header { 
         text-align: center; 
         color: #88c0d0;
@@ -72,6 +83,7 @@ st.markdown("""
         font-size: 2.8rem; 
         margin-bottom: 2rem; 
     }
+    
     .record-box { 
         background-color: #2e3440; 
         padding: 25px; 
@@ -81,7 +93,8 @@ st.markdown("""
         line-height: 1.8; 
         font-size: 1.05rem;
     }
-    .stTabs [data-baseweb="tab-list"] { gap: 10px; }
+    
+    /* Tab 優化 */
     .stTabs [data-baseweb="tab"] {
         height: 50px;
         background-color: #3b4252;
@@ -92,6 +105,12 @@ st.markdown("""
         background-color: #88c0d0 !important; 
         color: #2e3440 !important; 
     }
+    
+    /* 輸入框內部顏色優化 */
+    input, textarea, select {
+        background-color: #3b4252 !important;
+        color: #eceff4 !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -99,13 +118,12 @@ st.markdown('<h1 class="main-header">🏫 智慧輔導紀錄與親師生溝通�
 
 tab_input, tab_history, tab_report = st.tabs(["📝 導師紀錄錄入與分析", "🔍 班級個案歷程追蹤", "📊 個人觀察彙整筆記"])
 
-# --- TAB 1: 紀錄錄入 (改為上下堆疊佈局) ---
+# --- TAB 1: 紀錄錄入 (維持上下堆疊佈局) ---
 with tab_input:
-    # --- 上方：錄入區 ---
     st.markdown("### ✍️ 第一步：觀察錄入與功能選擇")
     
-    # 橫向排列基礎資訊，節省垂直空間
-    row1_c1, row1_c2, row1_c3 = st.columns([1, 1, 1.5])
+    # 橫向排列基礎資訊
+    row1_c1, row1_c2, row1_c3 = st.columns([1.2, 1, 1])
     with row1_c1:
         target_type = st.radio("對象：", ["學生 (個人晤談)", "家長 (親師聯繫)"], horizontal=True)
     with row1_c2:
@@ -133,7 +151,6 @@ with tab_input:
     # --- 下方：AI 分析結果區 ---
     st.markdown("### ✨ 第二步：導師輔助分析結果")
     
-    # 建立兩個並排視窗顯示 AI 結果，讓導師能一眼看清「文稿」與「建議」
     res_col1, res_col2 = st.columns(2, gap="large")
     
     if gen_formal and raw_obs:
@@ -174,10 +191,10 @@ with tab_input:
                     if k in st.session_state: del st.session_state[k]
             except Exception as e: st.error(f"儲存失敗：{e}")
 
-# --- TAB 2: 個案歷程追蹤 ---
+# --- TAB 2 & 3 維持原有邏輯 ---
 with tab_history:
     st.markdown("### 🔍 班級學生輔導歷程檢索")
-    search_id = st.text_input("輸入學生代號查詢：", key="case_search_v3")
+    search_id = st.text_input("輸入學生代號查詢：", key="case_search_final")
     if search_id:
         try:
             sheet = hub_engine.open(HUB_NAME).worksheet(SHEET_TAB)
@@ -192,7 +209,6 @@ with tab_history:
             else: st.warning("查無紀錄。")
         except Exception as e: st.error(f"查詢異常：{e}")
 
-# --- TAB 3: 個人觀察彙整 (導師版) ---
 with tab_report:
     st.markdown("### 📊 導師觀察彙整與個人筆記")
     if st.button("🔄 更新彙整數據"):
@@ -206,5 +222,4 @@ with tab_report:
                     st.write(df['類別'].value_counts())
                 with c_m2:
                     st.bar_chart(df['類別'].value_counts())
-                st.info(ai_engine.generate_content(f"身為導師，根據統計：{df['類別'].value_counts().to_dict()}。請給予三點關於班級經營的建議。").text)
-        except Exception as e: st.error(f"異常：{e}")
+        except Exception as e: st.error(f"數據異常：{e}")

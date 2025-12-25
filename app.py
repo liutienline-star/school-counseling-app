@@ -5,20 +5,20 @@ from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 import pandas as pd
 
-# --- 1. 核心安全與連線設定 (功能不變) ---
+# --- 1. 核心安全與連線設定 (功能完全不變) ---
 AUTH_CODE = "1225"  
 HUB_NAME = "School_Counseling_Hub"
 SHEET_TAB = "Counseling_Logs"
 MODEL_NAME = "models/gemini-2.5-flash" 
 
-st.set_page_config(page_title="智慧輔導紀錄與親師生溝通系統", layout="wide", page_icon="🏫")
+st.set_page_config(page_title="智慧輔導紀錄系統", layout="wide", page_icon="🏫")
 
-# --- 2. 視覺風格優化 (亮白色標籤與單選文字) ---
+# --- 2. 視覺風格優化 (確保字體純白清晰) ---
 st.markdown("""
     <style>
     .stApp { background-color: #1a1c23; color: #e5e9f0; }
     
-    /* 修正標籤顏色為純白與粗體 */
+    /* 強制標籤與單選文字為純白色，解決看不清楚的問題 */
     [data-testid="stWidgetLabel"] p, label, .stMarkdown p {
         color: #FFFFFF !important;
         font-weight: 700 !important;
@@ -26,7 +26,6 @@ st.markdown("""
         opacity: 1 !important;
     }
     
-    /* 修正 Radio 選項文字顏色 */
     div[data-testid="stRadio"] label div[data-testid="stMarkdownContainer"] p {
         color: #FFFFFF !important;
         font-weight: 600 !important;
@@ -45,16 +44,9 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 3. 驗證邏輯 (已移除 st.rerun() 避免警告) ---
+# --- 3. 修正後的驗證邏輯 (徹底解決 rerun 警告問題) ---
 if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
-
-def check_password():
-    if st.session_state["pwd_input"] == AUTH_CODE:
-        st.session_state.authenticated = True
-        # 這裡不再需要 st.rerun()，Streamlit 執行完此函數會自動重新整理
-    else:
-        st.error("❌ 授權碼錯誤，請重新輸入。")
 
 if not st.session_state.authenticated:
     st.markdown("<br><br><br>", unsafe_allow_html=True)
@@ -64,10 +56,18 @@ if not st.session_state.authenticated:
             <div style="text-align: center; background-color: #2e3440; padding: 40px; border-radius: 25px; border-top: 5px solid #88c0d0; box-shadow: 0 15px 35px rgba(0,0,0,0.4);">
                 <h1 style="font-size: 60px; margin-bottom: 20px;">🔐</h1>
                 <h2 style="color: #88c0d0;">導師身分驗證</h2>
-                <p style="color: #d8dee9; font-size: 1.1rem;">請輸入授權碼以進入個人紀錄空間</p>
+                <p style="color: #d8dee9; font-size: 1.1rem;">請輸入授權碼進入系統</p>
             </div>
         """, unsafe_allow_html=True)
-        st.text_input("授權碼：", type="password", key="pwd_input", on_change=check_password)
+        
+        # 改用變數直接接收輸入，避免使用會導致警告的 callback
+        pwd_input = st.text_input("授權碼：", type="password")
+        if pwd_input:
+            if pwd_input == AUTH_CODE:
+                st.session_state.authenticated = True
+                st.rerun() # 在主流程中使用 rerun 是合法且正確的
+            else:
+                st.error("❌ 授權碼錯誤")
     st.stop()
 
 # --- 4. 初始化服務 ---
@@ -81,12 +81,12 @@ def init_all_services():
         client = gspread.authorize(creds)
         return model, client
     except Exception as e:
-        st.error(f"系統連線異常：{e}")
+        st.error(f"連線異常：{e}")
         return None, None
 
 ai_engine, hub_engine = init_all_services()
 
-# --- 5. 主程式介面 ---
+# --- 5. 主程式頁面 (排版美化) ---
 st.markdown('<h1 class="main-header">🏫 智慧輔導紀錄與親師生溝通系統</h1>', unsafe_allow_html=True)
 tab_input, tab_history, tab_report = st.tabs(["📝 觀察紀錄錄入", "🔍 個案歷程追蹤", "📊 數據彙整筆記"])
 
@@ -103,20 +103,20 @@ with tab_input:
     raw_obs = st.text_area("【事實描述或晤談紀錄摘要】", height=280, placeholder="在此輸入觀察事實...")
     
     st.markdown("<br>", unsafe_allow_html=True)
-    btn_col1, btn_col2, btn_col3 = st.columns(3)
-    with btn_col1: gen_formal = st.button("📁 1. 生成優化紀錄文稿", use_container_width=True)
-    with btn_col2:
+    b1, b2, b3 = st.columns(3)
+    with b1: gen_formal = st.button("📁 1. 生成優化紀錄文稿", use_container_width=True)
+    with b2:
         if "學生" in target_type: gen_plan = st.button("🎯 2. 生成後續觀察重點", use_container_width=True)
         else: gen_line = st.button("💬 2. 撰寫親師合作訊息", use_container_width=True)
-    with btn_col3: save_hub = st.button("💾 3. 同步至雲端手冊", use_container_width=True, type="primary")
+    with b3: save_hub = st.button("💾 3. 同步至雲端手冊", use_container_width=True, type="primary")
 
     st.divider()
     st.markdown("### ✨ 第二步：導師輔助分析結果")
     res_l, res_r = st.columns(2, gap="large")
     
     if gen_formal and raw_obs:
-        with st.spinner("優化中..."):
-            st.session_state.analysis_1 = ai_engine.generate_content(f"身為導師，請優化紀錄：\n{raw_obs}").text
+        with st.spinner("AI 正在處理中..."):
+            st.session_state.analysis_1 = ai_engine.generate_content(f"身為導師，請優化紀錄文稿：\n{raw_obs}").text
     
     if 'analysis_1' in st.session_state:
         with res_l:
@@ -133,33 +133,31 @@ with tab_input:
         try:
             sheet = hub_engine.open(HUB_NAME).worksheet(SHEET_TAB)
             sheet.append_row([datetime.now().strftime("%Y-%m-%d %H:%M"), stu_id, target_type, category, raw_obs, f"{st.session_state.get('analysis_1','')}\n\n{st.session_state.get('analysis_2','')}"])
-            st.balloons(); st.success("✅ 已同步至雲端")
+            st.balloons(); st.success("✅ 紀錄已成功存入雲端 Hub")
             for k in ['analysis_1', 'analysis_2']: 
                 if k in st.session_state: del st.session_state[k]
         except Exception as e: st.error(f"儲存失敗：{e}")
 
+# (其餘追蹤與報表功能維持原樣)
 with tab_history:
     st.markdown("### 🔍 班級學生輔導歷程檢索")
-    search_id = st.text_input("輸入學生代號查詢：", key="final_search")
+    search_id = st.text_input("輸入代號查詢：")
     if search_id:
         try:
             sheet = hub_engine.open(HUB_NAME).worksheet(SHEET_TAB)
             records = sheet.get_all_records()
             matches = [r for r in records if str(r.get('學生代號', '')) == search_id]
-            if matches:
-                for r in matches[::-1]:
-                    with st.expander(f"📅 {r.get('日期')} | {r.get('對象')}"):
-                        st.markdown(f"<div style='background-color:#2e3440; padding:15px; border-radius:10px;'>{r.get('AI 分析結果')}</div>", unsafe_allow_html=True)
-            else: st.warning("查無紀錄")
-        except: st.error("讀取異常")
+            for r in matches[::-1]:
+                with st.expander(f"📅 {r.get('日期')} | {r.get('對象')}"):
+                    st.markdown(f"<div style='background-color:#2e3440; padding:15px; border-radius:10px;'>{r.get('AI 分析結果')}</div>", unsafe_allow_html=True)
+        except: st.error("連線異常")
 
 with tab_report:
-    st.markdown("### 📊 班級觀察數據統計")
-    if st.button("🔄 重新載入數據"):
+    st.markdown("### 📊 班級數據統計")
+    if st.button("🔄 更新數據"):
         try:
             sheet = hub_engine.open(HUB_NAME).worksheet(SHEET_TAB)
             df = pd.DataFrame(sheet.get_all_records())
-            if not df.empty:
-                st.metric("本學期累計量", len(df))
-                st.bar_chart(df['類別'].value_counts())
-        except: st.error("數據異常")
+            st.metric("累積案量", len(df))
+            st.bar_chart(df['類別'].value_counts())
+        except: st.error("讀取失敗")

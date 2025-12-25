@@ -67,7 +67,7 @@ col_in, col_out = st.columns([1, 1.2])
 with col_in:
     st.markdown("### 📝 紀錄輸入")
     stu_id = st.text_input("學生代號 (例如：701-05)", placeholder="請務必使用去識別化代號")
-    category = st.selectbox("事件類別", ["人際衝突", "情緒困擾", "常規违規", "家長溝通", "學習適應"])
+    category = st.selectbox("事件類別", ["人際衝突", "情緒困擾", "常規違規", "家長溝通", "學習適應"])
     
     raw_obs = st.text_area("原始觀察筆記 (隨手記)：", height=350, 
                           placeholder="請輸入發生的事實，例如：今天學生在課堂上突然大聲對老師咆哮，隨後衝出教室...")

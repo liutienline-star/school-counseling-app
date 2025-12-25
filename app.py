@@ -5,15 +5,15 @@ from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 import pandas as pd
 
-# --- 1. 核心安全與連線設定 (完全保留) ---
+# --- 1. 核心安全與連線設定 ---
 AUTH_CODE = "1225"  
 HUB_NAME = "School_Counseling_Hub"
 SHEET_TAB = "Counseling_Logs"
 MODEL_NAME = "models/gemini-2.5-flash" 
 
-st.set_page_config(page_title="智慧輔導系統 v1.8.1", layout="wide", page_icon="🛡️")
+st.set_page_config(page_title="智慧輔導系統 v1.8.3", layout="wide", page_icon="🛡️")
 
-# --- 2. 驗證邏輯 (完全保留) ---
+# --- 2. 驗證邏輯 ---
 if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
 
@@ -32,7 +32,7 @@ if not st.session_state.authenticated:
         st.text_input("請輸入專屬授權碼：", type="password", key="pwd_input", on_change=check_password)
         st.stop()
 
-# --- 3. 初始化服務 (完全保留) ---
+# --- 3. 初始化服務 ---
 @st.cache_resource
 def init_all_services():
     try:
@@ -48,7 +48,7 @@ def init_all_services():
 
 ai_engine, hub_engine = init_all_services()
 
-# --- 4. 視覺風格 (完全保留) ---
+# --- 4. 視覺風格 ---
 st.markdown("""
     <style>
     .block-container { max-width: 1200px !important; margin: auto; padding-top: 1rem; }
@@ -62,7 +62,7 @@ st.markdown('<h1 class="main-header">🏫 智慧輔導紀錄與親師溝通系�
 
 tab_input, tab_history, tab_report = st.tabs(["📝 紀錄錄入與 AI 分析", "🔍 個案歷程追蹤", "📊 數據中樞與月報表"])
 
-# --- [原功能] TAB 1: 紀錄錄入 (完全不變動) ---
+# --- TAB 1: 紀錄錄入 ---
 with tab_input:
     col_in, col_out = st.columns([1, 1.2])
     with col_in:
@@ -72,7 +72,6 @@ with tab_input:
         category = st.selectbox("事件類別", ["常規指導", "人際衝突", "情緒支持", "學習適應", "家長聯繫", "緊急事件"])
         raw_obs = st.text_area("晤談或事實描述：", height=250)
         
-        st.markdown("---")
         btn_col1, btn_col2 = st.columns(2)
         if "學生" in target_type:
             with btn_col1: gen_formal = st.button("📁 生成專業晤談紀錄")
@@ -111,7 +110,7 @@ with tab_input:
                 sheet = hub_engine.open(HUB_NAME).worksheet(SHEET_TAB)
                 an1 = st.session_state.get('analysis_1', 'N/A')
                 an2 = st.session_state.get('analysis_2', 'N/A')
-                # 儲存順序：日期(0), 代號(1), 對象(2), 類別(3), 描述(4), 結果(5)
+                # 對齊校長的欄位順序：日期, 學生代號, 對象, 類別, 原始觀察描述, AI 分析結果
                 sheet.append_row([datetime.now().strftime("%Y-%m-%d %H:%M"), stu_id, target_type, category, raw_obs, f"{an1}\n\n{an2}"])
                 st.balloons()
                 st.success(f"✅ 紀錄已存入 Hub")
@@ -119,61 +118,58 @@ with tab_input:
                     if k in st.session_state: del st.session_state[k]
             except Exception as e: st.error(f"儲存失敗：{e}")
 
-# --- [強化版] TAB 2: 個案歷程追蹤 (改用 Index 存取，避免 KeyError) ---
+# --- TAB 2: 個案歷程追蹤 (精準對齊校長欄位) ---
 with tab_history:
     st.subheader("🔍 個案歷史紀錄追蹤")
-    search_id = st.text_input("輸入學生代號查詢 (例如 702-05)：", key="case_search_v2")
+    search_id = st.text_input("輸入學生代號查詢：", key="case_search_final")
     
     if search_id:
         try:
             sheet = hub_engine.open(HUB_NAME).worksheet(SHEET_TAB)
-            # 改用 get_all_values()，這會回傳純二維陣列，不依賴標題名稱
-            all_values = sheet.get_all_values()
+            # 使用 get_all_records 直接以標題名稱對應，避免位置錯誤
+            records = sheet.get_all_records()
             
-            if len(all_values) > 1:
-                # 過濾出代號相符的資料 (代號在第 2 欄，索引為 1)
-                # 並將結果反轉，讓最新日期在最上面
-                results = [row for row in all_values if str(row[1]) == search_id][::-1]
+            if records:
+                # 篩選代號符合的紀錄
+                matches = [r for r in records if str(r.get('學生代號', '')) == search_id]
                 
-                if results:
-                    st.info(f"找到 {len(results)} 筆關於 {search_id} 的歷史紀錄")
-                    for row in results:
-                        # 索引對應：0:日期, 1:代號, 2:對象, 3:類別, 4:事實, 5:AI結果
-                        with st.expander(f"📅 {row[0]} | {row[2]} | {row[3]}"):
-                            st.markdown(f"**【原始描述】**\n{row[4]}")
+                if matches:
+                    st.info(f"找到 {len(matches)} 筆歷史紀錄")
+                    for r in matches[::-1]: # 最新到舊
+                        # 使用校長提供的確切欄位名稱
+                        date = r.get('日期', '未知時間')
+                        target = r.get('對象', '未指定')
+                        cat = r.get('類別', '未分類')
+                        obs = r.get('原始觀察描述', '無描述內容')
+                        result = r.get('AI 分析結果', '無分析結果')
+                        
+                        with st.expander(f"📅 {date} | {target} | {cat}"):
+                            st.markdown("**【原始觀察描述】**")
+                            st.write(obs)
                             st.divider()
-                            st.markdown(f"**【AI 分析內容】**\n{row[5]}")
+                            st.markdown("**【AI 分析結果】**")
+                            st.write(result)
                 else:
-                    st.warning(f"查無 {search_id} 的紀錄。")
+                    st.warning(f"查無代號 {search_id} 的紀錄。")
             else:
-                st.info("資料庫目前尚無數據。")
+                st.info("雲端資料庫目前為空。")
         except Exception as e: 
             st.error(f"查詢異常：{e}")
 
-# --- [強化版] TAB 3: 月報表 (同步強化穩定性) ---
+# --- TAB 3: 月報表 ---
 with tab_report:
-    st.subheader("📊 全校輔導大數據彙整")
-    if st.button("🔄 重新整理本月報表"):
+    st.subheader("📊 數據大數據彙整")
+    if st.button("🔄 重新整理報表"):
         try:
             sheet = hub_engine.open(HUB_NAME).worksheet(SHEET_TAB)
-            data = sheet.get_all_values()
-            if len(data) > 1:
-                df = pd.DataFrame(data[1:], columns=data[0])
-                # 如果標題列文字不對，手動修正標題列以利分析
-                df.columns = ['日期', '學生代號', '對象', '類別', '原始觀察描述', 'AI分析結果']
-                
-                df['日期'] = pd.to_datetime(df['日期'])
-                now = datetime.now()
-                this_month_df = df[(df['日期'].dt.month == now.month) & (df['日期'].dt.year == now.year)]
-                
-                if not this_month_df.empty:
-                    c1, c2 = st.columns([1, 1.5])
-                    with c1:
-                        st.bar_chart(this_month_df['類別'].value_counts())
-                        st.metric("本月總案量", len(this_month_df))
-                    with c2:
-                        report_res = ai_engine.generate_content(f"請根據數據給予行政建議：{this_month_df['類別'].value_counts().to_dict()}")
-                        st.success(report_res.text)
-                else: st.info("本月暫無數據。")
-            else: st.info("資料庫尚無數據。")
+            df = pd.DataFrame(sheet.get_all_records())
+            if not df.empty:
+                st.metric("累積總案量", len(df))
+                if '類別' in df.columns:
+                    st.write("事件類別分析")
+                    st.bar_chart(df['類別'].value_counts())
+                if '對象' in df.columns:
+                    st.write("輔導對象佔比")
+                    st.write(df['對象'].value_counts())
+            else: st.info("尚無數據可分析。")
         except Exception as e: st.error(f"報表異常：{e}")

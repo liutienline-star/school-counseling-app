@@ -160,7 +160,7 @@ with tab_report:
             if len(data) > 1:
                 df = pd.DataFrame(data[1:], columns=data[0])
                 # 如果標題列文字不對，手動修正標題列以利分析
-                df.columns = ['日期', '學生代號', '對象', '類別', '原始描述', 'AI分析結果']
+                df.columns = ['日期', '學生代號', '對象', '類別', '原始觀察描述', 'AI分析結果']
                 
                 df['日期'] = pd.to_datetime(df['日期'])
                 now = datetime.now()

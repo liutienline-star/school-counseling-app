@@ -5,14 +5,42 @@ from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 import pandas as pd
 
-# --- 1. 核心設定 ---
+# --- 1. 核心安全與連線設定 ---
+AUTH_CODE = "1225"  # <--- 校長，您可以在這裡修改您的專屬密碼 (例如校慶日期)
 HUB_NAME = "School_Counseling_Hub"
 SHEET_TAB = "Counseling_Logs"
 MODEL_NAME = "models/gemini-2.5-flash" 
 
-st.set_page_config(page_title="智慧輔導系統 v1.5", layout="wide", page_icon="🏫")
+st.set_page_config(page_title="智慧輔導系統 | 安全授權版", layout="wide", page_icon="🛡️")
 
-# --- 2. 視覺風格 ---
+# --- 2. 驗證邏輯 ---
+if 'authenticated' not in st.session_state:
+    st.session_state.authenticated = False
+
+def check_password():
+    if st.session_state["pwd_input"] == AUTH_CODE:
+        st.session_state.authenticated = True
+        st.rerun()
+    else:
+        st.error("❌ 授權碼錯誤，請洽詢系統管理員。")
+
+# --- 3. 登入介面 ---
+if not st.session_state.authenticated:
+    st.markdown("<br><br><br>", unsafe_allow_html=True)
+    col_l, col_m, col_r = st.columns([1, 1.5, 1])
+    with col_m:
+        st.markdown("""
+            <div style="text-align: center; background-color: #2e3440; padding: 30px; border-radius: 15px; border: 1px solid #88c0d0;">
+                <h2 style="color: #88c0d0;">🔐 校內人員驗證</h2>
+                <p style="color: #eceff4;">本系統包含學生個資，請輸入授權碼以繼續</p>
+            </div>
+        """, unsafe_allow_html=True)
+        st.text_input("請輸入專屬授權碼：", type="password", key="pwd_input", on_change=check_password)
+        st.stop() # 停止執行後續代碼
+
+# --- 4. 驗證通過後的正式系統 (承襲 v1.5 所有功能) ---
+
+# --- 視覺風格 ---
 st.markdown("""
     <style>
     .block-container { max-width: 1200px !important; margin: auto; padding-top: 1rem; }
@@ -23,13 +51,10 @@ st.markdown("""
         font-weight: 600; font-size: 2.2rem; margin-bottom: 2rem;
     }
     .record-box { background-color: #2e3440; padding: 20px; border-radius: 12px; border: 1px solid #4c566a; }
-    .line-box { background-color: #06c755; color: white; padding: 15px; border-radius: 12px; }
-    /* 讓按鈕並排的樣式 */
-    div.stButton > button { width: 100%; border-radius: 8px; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 3. 初始化服務 ---
+# --- 初始化服務 ---
 @st.cache_resource
 def init_all_services():
     try:
@@ -45,75 +70,58 @@ def init_all_services():
 
 ai_engine, hub_engine = init_all_services()
 
-# --- 4. 主介面 ---
+# --- 主介面 ---
 st.markdown('<h1 class="main-header">🏫 智慧輔導紀錄與親師溝通系統</h1>', unsafe_allow_html=True)
+st.sidebar.success(f"🔑 已授權存取 (登入時間: {datetime.now().strftime('%H:%M')})")
+if st.sidebar.button("登出系統"):
+    st.session_state.authenticated = False
+    st.rerun()
 
 tab_input, tab_report = st.tabs(["📝 紀錄錄入與功能按鈕", "📊 數據中樞與月報表"])
 
-# --- 第一分頁：雙按鈕功能區 ---
+# --- 第一分頁：紀錄錄入 (雙按鈕獨立版) ---
 with tab_input:
     col_in, col_out = st.columns([1, 1.2])
-
     with col_in:
         st.subheader("📝 觀察錄入")
         stu_id = st.text_input("學生代號", placeholder="例如：702-05")
         category = st.selectbox("事件類別", ["常規指導", "人際衝突", "情緒支持", "學習適應", "家長聯繫"])
-        raw_obs = st.text_area("事實描述：", height=280, placeholder="請輸入觀察到的事實...")
+        raw_obs = st.text_area("事實描述：", height=280)
         
-        st.markdown("---")
-        # 雙按鈕設計
         btn_col1, btn_col2 = st.columns(2)
-        with btn_col1:
-            gen_record = st.button("📁 生成專業紀錄")
-        with btn_col2:
-            gen_line = st.button("💬 生成 LINE 草稿")
+        with btn_col1: gen_record = st.button("📁 生成專業紀錄")
+        with btn_col2: gen_line = st.button("💬 生成 LINE 草稿")
 
     with col_out:
-        # 功能 A：生成專業輔導紀錄
         if gen_record and raw_obs:
-            with st.spinner("正在轉譯專業紀錄..."):
-                prompt_a = f"你是一位專業輔導老師，請將以下觀察描述轉化為「專業、客觀」的輔導紀錄格式，並包含行為動機簡析：\n{raw_obs}"
-                res_a = ai_engine.generate_content(prompt_a)
-                st.session_state.formal_record = res_a.text
-        
-        # 功能 B：生成 LINE 溝通草稿
+            with st.spinner("轉譯中..."):
+                st.session_state.formal_record = ai_engine.generate_content(f"請將以下觀察轉化為專業輔導紀錄：\n{raw_obs}").text
         if gen_line and raw_obs:
-            with st.spinner("正在撰寫 LINE 草稿..."):
-                prompt_b = f"你是一位溫柔專業的老師，請針對以下內容撰寫一段適合傳給家長的 LINE 訊息。強調親師合作、語氣委婉、提供具體建議：\n{raw_obs}"
-                res_b = ai_engine.generate_content(prompt_b)
-                st.session_state.line_draft = res_b.text
+            with st.spinner("擬稿中..."):
+                st.session_state.line_draft = ai_engine.generate_content(f"請針對以下內容撰寫給家長的 LINE 訊息，強調親師合作：\n{raw_obs}").text
 
-        # 顯示結果區塊
         if 'formal_record' in st.session_state:
             st.markdown("##### 📁 專業輔導紀錄分析")
             st.markdown(f'<div class="record-box">{st.session_state.formal_record}</div>', unsafe_allow_html=True)
-            st.write("") # 間隔
-
         if 'line_draft' in st.session_state:
             st.markdown("##### 🟢 LINE 親師溝通草稿")
             st.code(st.session_state.line_draft, language="text")
-            st.caption("💡 點擊右上角複製圖示即可使用")
 
     st.divider()
-    # 儲存按鈕
     if st.button("💾 同步至雲端 Hub"):
         if stu_id and ( 'formal_record' in st.session_state or 'line_draft' in st.session_state ):
             try:
                 sheet = hub_engine.open(HUB_NAME).worksheet(SHEET_TAB)
-                # 取得目前已生成的內容，若無則留空
                 f_rec = st.session_state.get('formal_record', '未生成')
                 l_dra = st.session_state.get('line_draft', '未生成')
-                combined_res = f"【專業紀錄】\n{f_rec}\n\n【LINE草稿】\n{l_dra}"
-                
-                sheet.append_row([datetime.now().strftime("%Y-%m-%d %H:%M"), stu_id, category, raw_obs, combined_res])
+                sheet.append_row([datetime.now().strftime("%Y-%m-%d %H:%M"), stu_id, category, raw_obs, f"【紀錄】{f_rec}\n【LINE】{l_dra}"])
                 st.balloons()
                 st.success("✅ 數據已存入 Hub！")
-                # 清除狀態
-                if 'formal_record' in st.session_state: del st.session_state.formal_record
-                if 'line_draft' in st.session_state: del st.session_state.line_draft
+                for k in ['formal_record', 'line_draft']: 
+                    if k in st.session_state: del st.session_state[k]
             except Exception as e: st.error(f"儲存失敗：{e}")
 
-# --- 第二分頁：月報表功能 (保持不變) ---
+# --- 第二分頁：月報表功能 ---
 with tab_report:
     st.subheader("📊 全校輔導大數據彙整")
     if st.button("🔄 重新整理本月報表"):
@@ -130,7 +138,7 @@ with tab_report:
                         st.bar_chart(this_month_df['類別'].value_counts())
                         st.metric("本月累計個案", len(this_month_df))
                     with c2:
-                        report_res = ai_engine.generate_content(f"請針對本月輔導數據給予校長三點行政建議：{this_month_df['類別'].value_counts().to_dict()}")
+                        report_res = ai_engine.generate_content(f"請針對本月輔導數據給予校長行政建議：{this_month_df['類別'].value_counts().to_dict()}")
                         st.success(report_res.text)
                 else: st.info("本月暫無數據。")
-        except Exception as e: st.error(f"數據解析異常：{e}")
+        except Exception as e: st.error(f"報表異常：{e}")

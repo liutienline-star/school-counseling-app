@@ -18,12 +18,13 @@ try:
     SENDER_EMAIL = st.secrets["email"]["sender"]
     SENDER_PASSWORD = st.secrets["email"]["password"]
     
-    # --- 處室信箱設定區 (已更新為校長指定信箱) ---
+    # --- 處室信箱設定區 (加上引號修正 NameError) ---
     EMAIL_STUDENT_AFFAIRS = "ff103a01@ffjh.tyc.edu.tw"
     EMAIL_COUNSELING = "ff103a01@ffjh.tyc.edu.tw"
     # ---------------------------------------
 except:
     SENDER_EMAIL = SENDER_PASSWORD = None
+    EMAIL_STUDENT_AFFAIRS = EMAIL_COUNSELING = "ff103a01@ffjh.tyc.edu.tw"
 
 st.set_page_config(page_title="智慧輔導紀錄系統", layout="wide", page_icon="🏫")
 

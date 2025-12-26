@@ -20,16 +20,16 @@ st.markdown("""
     .block-container { max-width: 1100px !important; padding-top: 2rem !important; margin: auto; }
     .stApp { background-color: #1a1c23; color: #e5e9f0; }
     
-    /* 1. 修正所有標籤文字 (紅框：對象類型、學生代號等) */
+    /* 1. 修正所有標籤文字 (確保未選中時也清晰) */
     [data-testid="stWidgetLabel"] p, label, .stMarkdown p { 
         color: #FFFFFF !important; 
         font-weight: 700 !important; 
         font-size: 1.15rem !important; 
     }
     
-    /* 2. 修正標籤頁文字 (紅框：個案歷程追蹤、數據彙整筆記) */
+    /* 2. 修正標籤頁文字 (增加未選中狀態的亮度) */
     button[data-baseweb="tab"] p { 
-        color: #e5e9f0 !important; 
+        color: #d1d5db !important; /* 未選中時呈現淺灰色，提高辨識度 */
         font-weight: 700 !important; 
         font-size: 1.2rem !important;
     }
@@ -37,29 +37,39 @@ st.markdown("""
         color: #88c0d0 !important; /* 選中時呈現亮藍色 */
     }
 
-    /* 3. 修正單選按鈕選項文字 (紅框：學生、家長) */
+    /* 3. 修正單選按鈕選項文字 (未選中也保持純白) */
     div[role="radiogroup"] label {
         color: #FFFFFF !important;
         font-weight: 500 !important;
+        opacity: 1 !important; /* 消除透明度，使其清晰 */
     }
 
-    /* 4. 修正功能按鈕文字 (紅框：按鈕 1、2) */
+    /* 4. 修正功能按鈕文字與邊框 (強化視覺邊界) */
     .stButton>button { 
-        background-color: #4c566a !important; 
+        background-color: #3b4252 !important; 
         color: #ffffff !important; 
-        border: 1px solid #88c0d0 !important;
+        border: 2px solid #88c0d0 !important; /* 加粗邊框 */
         font-weight: 700 !important;
         padding: 0.5rem 1rem !important;
+        width: 100% !important;
     }
     .stButton>button:hover {
-        border: 1px solid #ffffff !important;
-        color: #88c0d0 !important;
+        border: 2px solid #ffffff !important;
+        background-color: #4c566a !important;
     }
     
-    /* 原有結果框樣式 */
+    /* 5. 標題高度統一化 (解決方塊沒切齊的問題) */
+    .column-header {
+        height: 50px;
+        display: flex;
+        align-items: center;
+        margin-bottom: 5px;
+    }
+
+    /* 結果框樣式 */
     .main-header { text-align: center; background: linear-gradient(90deg, #88c0d0, #5e81ac); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 800; font-size: 2.5rem; margin-bottom: 2rem; }
-    .result-box { background-color: #2e3440; padding: 20px; border-radius: 12px; border: 1px solid #4c566a; min-height: 300px; margin-top: 10px; white-space: pre-wrap; color: #ffffff; }
-    .risk-badge { padding: 5px 15px; border-radius: 20px; font-weight: 800; font-size: 0.9rem; margin-bottom: 10px; display: inline-block; }
+    .result-box { background-color: #2e3440; padding: 20px; border-radius: 12px; border: 1px solid #4c566a; min-height: 400px; white-space: pre-wrap; color: #ffffff; }
+    .risk-badge { padding: 5px 15px; border-radius: 20px; font-weight: 800; font-size: 0.9rem; display: inline-block; margin-left: 10px; }
     .risk-high { background-color: #bf616a; color: white; border: 1px solid #ff0000; }
     .risk-med { background-color: #ebcb8b; color: #2e3440; }
     .risk-low { background-color: #a3be8c; color: white; }
@@ -157,11 +167,13 @@ with tab_input:
     st.divider()
     res_c1, res_c2 = st.columns(2)
     with res_c1:
-        st.markdown("**📋 優化文稿**")
+        # 使用 column-header class 確保高度對齊
+        st.markdown('<div class="column-header">**📋 優化文稿**</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="result-box">{st.session_state.analysis_1}</div>', unsafe_allow_html=True)
     with res_c2:
         risk_color = "risk-high" if st.session_state.risk_level == "高" else ("risk-med" if st.session_state.risk_level == "中" else "risk-low")
-        st.markdown(f'**⚠️ 風險評估：** <span class="risk-badge {risk_color}">{st.session_state.risk_level}</span>', unsafe_allow_html=True)
+        # 同樣使用 column-header class
+        st.markdown(f'<div class="column-header">**⚠️ 風險評估：** <span class="risk-badge {risk_color}">{st.session_state.risk_level}</span></div>', unsafe_allow_html=True)
         st.markdown(f'<div class="result-box">{st.session_state.analysis_2}</div>', unsafe_allow_html=True)
 
 # --- 6. 歷史紀錄追蹤 ---

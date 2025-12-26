@@ -18,7 +18,7 @@ try:
     SENDER_EMAIL = st.secrets["email"]["sender"]
     SENDER_PASSWORD = st.secrets["email"]["password"]
     
-    # --- 處室信箱設定區 (僅修正引號以符合語法) ---
+    # --- 處室信箱設定區 (加上引號修正 NameError) ---
     EMAIL_STUDENT_AFFAIRS = "ff103a01@ffjh.tyc.edu.tw"
     EMAIL_COUNSELING = "ff103a01@ffjh.tyc.edu.tw"
     # ---------------------------------------
@@ -28,7 +28,7 @@ except:
 
 st.set_page_config(page_title="智慧輔導紀錄系統", layout="wide", page_icon="🏫")
 
-# --- 2. 視覺風格 (校長要求：嚴格鎖定版面與色調，不准變動) ---
+# --- 2. 視覺風格 (校長版：嚴格鎖定版面與色調) ---
 st.markdown("""
     <style>
     .block-container { max-width: 1100px !important; padding-top: 2rem !important; margin: auto; }
@@ -58,11 +58,12 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 3. 核心功能：發送 HTML 郵件 (僅加入署名，不改通知邏輯) ---
+# --- 3. 核心功能：發送 HTML 郵件 ---
 def send_alert_email(stu_id, category, content, receiver_email, office_name):
     if not SENDER_EMAIL or not SENDER_PASSWORD: return False
     try:
-        subject = f"🚨 【緊急通報-{office_name}】高風險個案：{stu_id}"
+        # 修改處：將 (809導師) 加入郵件主旨「通報」之後
+        subject = f"🚨 【緊急通報(809導師)-{office_name}】高風險個案：{stu_id}"
         html_body = f"""
         <html>
         <body style="font-family: 'Microsoft JhengHei', sans-serif; line-height: 1.6; color: #333;">
@@ -74,9 +75,7 @@ def send_alert_email(stu_id, category, content, receiver_email, office_name):
                     <tr><th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">紀錄類別</th><td style="padding: 8px; border-bottom: 1px solid #ddd;">{category}</td></tr>
                 </table>
                 <div style="margin-top: 20px; padding: 15px; background-color: #fff; border-left: 5px solid #88c0d0;">
-                    <p style="margin-top: 0; font-weight: bold;">📌 原始事件描述：</p>
-                    <p style="white-space: pre-wrap;">{content}</p>
-                    <p style="margin-top: 15px; text-align: right; font-weight: bold; color: #333;">809導師 敬上</p>
+                    <p style="margin-top: 0; font-weight: bold;">📌 原始事件描述：</p><p style="white-space: pre-wrap;">{content}</p>
                 </div>
                 <p style="font-size: 0.85rem; color: #777; margin-top: 20px;">※ 本信件由系統自動發送。</p>
             </div>
@@ -90,7 +89,7 @@ def send_alert_email(stu_id, category, content, receiver_email, office_name):
         return True
     except: return False
 
-# --- 4. 驗證與初始化 (完全維持原樣) ---
+# --- 4. 驗證與初始化 ---
 if 'authenticated' not in st.session_state: st.session_state.authenticated = False
 if not st.session_state.authenticated:
     _, col_m, _ = st.columns([1, 1.5, 1])
@@ -118,7 +117,7 @@ for key in ['analysis_1', 'analysis_2', 'risk_level', 'needs_confirm']:
         st.session_state[key] = "" if key != 'risk_level' else "低"
         if key == 'needs_confirm': st.session_state[key] = False
 
-# --- 5. 主介面 (內容、標題、分頁完全維持原樣) ---
+# --- 5. 主介面 ---
 st.markdown('<h1 class="main-header">🏫 智慧輔導紀錄與親師生溝通系統</h1>', unsafe_allow_html=True)
 tab_input, tab_history, tab_report = st.tabs(["📝 觀察紀錄錄入", "🔍 個案歷程追蹤", "📊 數據彙整筆記"])
 
@@ -162,7 +161,7 @@ with tab_input:
             except Exception as e: st.error(f"同步失敗：{e}")
         else: st.error("❌ 請輸入學生代號")
 
-    # --- 高風險處室選擇區 ---
+    # --- 高風險處室選擇區 (僅在高風險同步後顯示) ---
     if st.session_state.needs_confirm:
         st.markdown(f'<div class="confirm-alert"><h2 style="color:#ff4b4b;">🚨 緊急通報確認 (高風險)</h2><p>請選擇要通報的處室：</p></div>', unsafe_allow_html=True)
         sel_c1, sel_c2 = st.columns(2)
@@ -185,7 +184,7 @@ with tab_input:
         st.markdown(f'<div class="column-header">⚠️ 風險評估：<span class="risk-badge {risk_color}">{st.session_state.risk_level}</span></div>', unsafe_allow_html=True)
         st.markdown(f'<div class="result-box">{st.session_state.analysis_2}</div>', unsafe_allow_html=True)
 
-# --- Tab 2: 歷史紀錄 (完全維持原樣) ---
+# --- Tab 2: 歷史紀錄 ---
 with tab_history:
     st.markdown("### 🔍 個案歷程追蹤")
     if st.button("🔄 刷新歷史紀錄"):
@@ -200,7 +199,7 @@ with tab_history:
             else: st.info("尚無紀錄。")
         except Exception as e: st.error(f"讀取失敗：{e}")
 
-# --- Tab 3: 數據統計 (完全維持原樣) ---
+# --- Tab 3: 數據統計 ---
 with tab_report:
     st.markdown("### 📊 數據彙整筆記")
     if st.button("📈 重新生成統計圖表"):

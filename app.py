@@ -19,7 +19,7 @@ try:
     SENDER_PASSWORD = st.secrets["email"]["password"]
     
     # --- 處室信箱設定區 (請在此輸入正式信箱) ---
-    EMAIL_STUDENT_AFFAIRS = SENDER_EMAILff103a01@ffjh.tyc.edu.tw
+    EMAIL_STUDENT_AFFAIRS = ff103a01@ffjh.tyc.edu.tw
     EMAIL_COUNSELING = SENDER_EMAIL       # 預設為自己，正式時請修改
     # ---------------------------------------
 except:

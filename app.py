@@ -16,9 +16,47 @@ st.set_page_config(page_title="智慧輔導紀錄系統", layout="wide", page_ic
 # --- 2. 視覺風格 (校長風格：深色質感) ---
 st.markdown("""
     <style>
+    /* 基礎容器樣式 */
     .block-container { max-width: 1100px !important; padding-top: 2rem !important; margin: auto; }
     .stApp { background-color: #1a1c23; color: #e5e9f0; }
-    [data-testid="stWidgetLabel"] p, label, .stMarkdown p { color: #FFFFFF !important; font-weight: 700 !important; font-size: 1.15rem !important; }
+    
+    /* 1. 修正所有標籤文字 (紅框：對象類型、學生代號等) */
+    [data-testid="stWidgetLabel"] p, label, .stMarkdown p { 
+        color: #FFFFFF !important; 
+        font-weight: 700 !important; 
+        font-size: 1.15rem !important; 
+    }
+    
+    /* 2. 修正標籤頁文字 (紅框：個案歷程追蹤、數據彙整筆記) */
+    button[data-baseweb="tab"] p { 
+        color: #e5e9f0 !important; 
+        font-weight: 700 !important; 
+        font-size: 1.2rem !important;
+    }
+    button[data-baseweb="tab"][aria-selected="true"] p { 
+        color: #88c0d0 !important; /* 選中時呈現亮藍色 */
+    }
+
+    /* 3. 修正單選按鈕選項文字 (紅框：學生、家長) */
+    div[role="radiogroup"] label {
+        color: #FFFFFF !important;
+        font-weight: 500 !important;
+    }
+
+    /* 4. 修正功能按鈕文字 (紅框：按鈕 1、2) */
+    .stButton>button { 
+        background-color: #4c566a !important; 
+        color: #ffffff !important; 
+        border: 1px solid #88c0d0 !important;
+        font-weight: 700 !important;
+        padding: 0.5rem 1rem !important;
+    }
+    .stButton>button:hover {
+        border: 1px solid #ffffff !important;
+        color: #88c0d0 !important;
+    }
+    
+    /* 原有結果框樣式 */
     .main-header { text-align: center; background: linear-gradient(90deg, #88c0d0, #5e81ac); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 800; font-size: 2.5rem; margin-bottom: 2rem; }
     .result-box { background-color: #2e3440; padding: 20px; border-radius: 12px; border: 1px solid #4c566a; min-height: 300px; margin-top: 10px; white-space: pre-wrap; color: #ffffff; }
     .risk-badge { padding: 5px 15px; border-radius: 20px; font-weight: 800; font-size: 0.9rem; margin-bottom: 10px; display: inline-block; }
@@ -58,7 +96,6 @@ ai_engine, hub_engine = init_services()
 st.markdown('<h1 class="main-header">🏫 智慧輔導紀錄與親師生溝通系統</h1>', unsafe_allow_html=True)
 tab_input, tab_history, tab_report = st.tabs(["📝 觀察紀錄錄入", "🔍 個案歷程追蹤", "📊 數據彙整筆記"])
 
-# 確保狀態變數存在
 if 'analysis_1' not in st.session_state: st.session_state.analysis_1 = ""
 if 'analysis_2' not in st.session_state: st.session_state.analysis_2 = ""
 if 'risk_level' not in st.session_state: st.session_state.risk_level = "低"
@@ -75,16 +112,13 @@ with tab_input:
     st.markdown("<br>", unsafe_allow_html=True)
     col_b1, col_b2, col_b3 = st.columns(3)
     
-    # 功能按鈕 1：優化紀錄
     if col_b1.button("📁 1. 生成優化紀錄文稿"):
         with st.spinner("生成中..."):
             res = ai_engine.generate_content(f"請優化為專業且客觀的輔導紀錄，保持中立：\n{raw_obs}")
             st.session_state.analysis_1 = res.text
 
-    # 功能按鈕 2：分析建議 (強化：學生晤談亦包含給家長的訊息)
     if col_b2.button("🎯 2. 生成分析與建議"):
         with st.spinner("分析中..."):
-            # 在 Prompt 中強制要求不論對象是誰都必須有親師溝通訊息
             prompt = (f"請針對這份【{target_type}】內容進行分析。\n"
                       f"第一行必須標註：【風險等級：高/中/低】。\n"
                       f"隨後提供：\n1. 初步處理行動建議。\n"
@@ -93,19 +127,16 @@ with tab_input:
                       f"內容：\n{raw_obs}")
             res = ai_engine.generate_content(prompt).text
             st.session_state.analysis_2 = res
-            # 自動判斷風險等級
             first_line = res.split('\n')[0]
             if "高" in first_line: st.session_state.risk_level = "高"
             elif "中" in first_line: st.session_state.risk_level = "中"
             else: st.session_state.risk_level = "低"
 
-    # 功能按鈕 3：同步雲端 (嚴格對齊 7 欄位)
     if col_b3.button("💾 3. 同步至雲端手冊", type="primary"):
         if stu_id:
             try:
                 sheet = hub_engine.open(HUB_NAME).worksheet(SHEET_TAB)
                 fact_to_save = "[機密紀錄]" if is_private else raw_obs
-                # 嚴格對齊：日期(A), 學生代號(B), 對象類型(C), 類別(D), 風險等級(E), 原始觀察描述(F), AI分析結果(G)
                 row_data = [
                     datetime.now().strftime("%Y/%m/%d %H:%M"), 
                     stu_id, 
@@ -123,7 +154,6 @@ with tab_input:
         else:
             st.error("❌ 請輸入學生代號")
 
-    # 顯示分析結果
     st.divider()
     res_c1, res_c2 = st.columns(2)
     with res_c1:

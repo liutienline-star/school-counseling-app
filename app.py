@@ -81,12 +81,15 @@ with tab_input:
             res = ai_engine.generate_content(f"請優化為專業且客觀的輔導紀錄，保持中立：\n{raw_obs}")
             st.session_state.analysis_1 = res.text
 
-    # 功能按鈕 2：分析建議 (包含溫潤親師訊息)
+    # 功能按鈕 2：分析建議 (強化：學生晤談亦包含給家長的訊息)
     if col_b2.button("🎯 2. 生成分析與建議"):
         with st.spinner("分析中..."):
-            prompt = (f"請分析以下內容。第一行必須標註：【風險等級：高/中/低】。\n"
+            # 在 Prompt 中強制要求不論對象是誰都必須有親師溝通訊息
+            prompt = (f"請針對這份【{target_type}】內容進行分析。\n"
+                      f"第一行必須標註：【風險等級：高/中/低】。\n"
                       f"隨後提供：\n1. 初步處理行動建議。\n"
-                      f"2. 一份給家長的溝通訊息。要求：語氣溫潤、具備專業關懷，先肯定孩子，避免生硬口吻。\n\n"
+                      f"2. 一份給家長的溝通訊息。要求：語氣溫潤、具備專業關懷，先肯定孩子，避免生硬口吻。\n"
+                      f"※ 注意：即便此紀錄是學生個人晤談，也請產出供老師參考發送給家長的溝通/回報訊息格式。\n\n"
                       f"內容：\n{raw_obs}")
             res = ai_engine.generate_content(prompt).text
             st.session_state.analysis_2 = res
@@ -131,7 +134,7 @@ with tab_input:
         st.markdown(f'**⚠️ 風險評估：** <span class="risk-badge {risk_color}">{st.session_state.risk_level}</span>', unsafe_allow_html=True)
         st.markdown(f'<div class="result-box">{st.session_state.analysis_2}</div>', unsafe_allow_html=True)
 
-# --- 6. 歷史紀錄追蹤 (修正 Key 名稱以匹配試算表) ---
+# --- 6. 歷史紀錄追蹤 ---
 with tab_history:
     st.markdown("### 🔍 個案歷程追蹤")
     if st.button("🔄 刷新歷史紀錄"):
@@ -141,7 +144,6 @@ with tab_history:
             if data:
                 df = pd.DataFrame(data)
                 for index, row in df.iloc[::-1].iterrows():
-                    # 使用與試算表首列標題完全一致的字串作為 Key
                     with st.expander(f"📅 {row['日期']} | {row['學生代號']} ({row['類別']} - 風險：{row['風險等級']})"):
                         st.write(f"**事實描述：**\n{row['原始觀察描述']}")
                         st.info(f"**AI 分析結果：**\n{row['AI分析結果']}")

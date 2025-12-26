@@ -18,7 +18,7 @@ try:
     SENDER_EMAIL = st.secrets["email"]["sender"]
     SENDER_PASSWORD = st.secrets["email"]["password"]
     
-    # --- 處室信箱設定區 (加上引號修正 NameError) ---
+    # --- 處室信箱設定區 (已修正引號與正式信箱) ---
     EMAIL_STUDENT_AFFAIRS = "ff103a01@ffjh.tyc.edu.tw"
     EMAIL_COUNSELING = "ff103a01@ffjh.tyc.edu.tw"
     # ---------------------------------------
@@ -76,6 +76,7 @@ def send_alert_email(stu_id, category, content, receiver_email, office_name):
                 <div style="margin-top: 20px; padding: 15px; background-color: #fff; border-left: 5px solid #88c0d0;">
                     <p style="margin-top: 0; font-weight: bold;">📌 原始事件描述：</p><p style="white-space: pre-wrap;">{content}</p>
                 </div>
+                <p style="margin-top: 20px; font-weight: bold; color: #1a1c23;">809導師 敬上</p>
                 <p style="font-size: 0.85rem; color: #777; margin-top: 20px;">※ 本信件由系統自動發送。</p>
             </div>
         </body>

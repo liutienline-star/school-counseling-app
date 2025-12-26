@@ -13,39 +13,42 @@ HUB_NAME = "School_Counseling_Hub"
 SHEET_TAB = "Counseling_Logs"
 MODEL_NAME = "models/gemini-2.0-flash" 
 
-# [郵件設定] 從 Secrets 讀取
+# [郵件與處室設定]
 try:
     SENDER_EMAIL = st.secrets["email"]["sender"]
     SENDER_PASSWORD = st.secrets["email"]["password"]
-    # 測試階段：寄給自己；正式上線後請改為單位信箱
-    RECEIVER_EMAIL = SENDER_EMAIL 
+    
+    # --- 處室信箱設定區 (請在此輸入正式信箱) ---
+    EMAIL_STUDENT_AFFAIRS = SENDER_EMAIL  # 預設為自己，正式時請修改
+    EMAIL_COUNSELING = SENDER_EMAIL       # 預設為自己，正式時請修改
+    # ---------------------------------------
 except:
-    SENDER_EMAIL = SENDER_PASSWORD = RECEIVER_EMAIL = None
+    SENDER_EMAIL = SENDER_PASSWORD = None
 
 st.set_page_config(page_title="智慧輔導紀錄系統", layout="wide", page_icon="🏫")
 
-# --- 2. 視覺風格 (校長版：視覺切齊、高對比度、深色質感) ---
+# --- 2. 視覺風格 (校長版：嚴格鎖定版面與色調) ---
 st.markdown("""
     <style>
     .block-container { max-width: 1100px !important; padding-top: 2rem !important; margin: auto; }
     .stApp { background-color: #1a1c23; color: #e5e9f0; }
     
-    /* 文字辨識度強化 */
+    /* 文字辨識度 */
     [data-testid="stWidgetLabel"] p, label, .stMarkdown p { color: #FFFFFF !important; font-weight: 700 !important; font-size: 1.15rem !important; }
     button[data-baseweb="tab"] p { color: #d1d5db !important; font-weight: 700 !important; font-size: 1.2rem !important; }
     button[data-baseweb="tab"][aria-selected="true"] p { color: #88c0d0 !important; }
     div[role="radiogroup"] label { color: #FFFFFF !important; font-weight: 500 !important; opacity: 1 !important; }
 
-    /* 功能按鈕強化 */
+    /* 按鈕樣式固定 */
     .stButton>button { background-color: #3b4252 !important; color: #ffffff !important; border: 2px solid #88c0d0 !important; font-weight: 700 !important; width: 100% !important; height: 50px; }
     .stButton>button:hover { border: 2px solid #ffffff !important; background-color: #4c566a !important; }
     
-    /* 標題高度統一化 (確保方塊切齊) */
+    /* 標題高度與切齊 */
     .column-header { height: 60px; display: flex; align-items: center; margin-bottom: 5px; font-weight: bold; }
     .main-header { text-align: center; background: linear-gradient(90deg, #88c0d0, #5e81ac); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 800; font-size: 2.5rem; margin-bottom: 2rem; }
     .result-box { background-color: #2e3440; padding: 20px; border-radius: 12px; border: 1px solid #4c566a; min-height: 400px; white-space: pre-wrap; color: #ffffff; }
     
-    /* 風險與警示樣式 */
+    /* 風險與警示標籤 */
     .risk-badge { padding: 5px 15px; border-radius: 20px; font-weight: 800; font-size: 0.9rem; display: inline-block; margin-left: 10px; }
     .risk-high { background-color: #bf616a; color: white; border: 1px solid #ff0000; }
     .risk-med { background-color: #ebcb8b; color: #2e3440; }
@@ -54,35 +57,31 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 3. 核心功能：發送專業 HTML 郵件 (僅包含原始事件) ---
-def send_alert_email(stu_id, category, content):
+# --- 3. 核心功能：發送 HTML 郵件 ---
+def send_alert_email(stu_id, category, content, receiver_email, office_name):
     if not SENDER_EMAIL or not SENDER_PASSWORD: return False
     try:
-        subject = f"🚨 【緊急通報】高風險個案：{stu_id}"
+        subject = f"🚨 【緊急通報-{office_name}】高風險個案：{stu_id}"
         html_body = f"""
         <html>
         <body style="font-family: 'Microsoft JhengHei', sans-serif; line-height: 1.6; color: #333;">
-            <div style="background-color: #bf616a; padding: 15px; border-radius: 5px 5px 0 0;">
-                <h2 style="color: white; margin: 0;">🏫 學生個案緊急通報</h2>
-            </div>
+            <div style="background-color: #bf616a; padding: 15px; border-radius: 5px 5px 0 0;"><h2 style="color: white; margin: 0;">🏫 {office_name} 緊急通報</h2></div>
             <div style="border: 1px solid #ddd; padding: 20px; background-color: #f9f9f9;">
-                <p>管理員您好：系統偵測到一筆<span style="color: #ff0000; font-weight: bold;">【高風險】</span>輔導紀錄。</p>
+                <p>師長您好：系統偵測到一筆【高風險】輔導紀錄。</p>
                 <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
                     <tr><th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd; width: 100px;">學生代號</th><td style="padding: 8px; border-bottom: 1px solid #ddd;">{stu_id}</td></tr>
-                    <tr><th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">類別</th><td style="padding: 8px; border-bottom: 1px solid #ddd;">{category}</td></tr>
-                    <tr><th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">時間</th><td style="padding: 8px; border-bottom: 1px solid #ddd;">{datetime.now().strftime('%Y-%m-%d %H:%M')}</td></tr>
+                    <tr><th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">紀錄類別</th><td style="padding: 8px; border-bottom: 1px solid #ddd;">{category}</td></tr>
                 </table>
                 <div style="margin-top: 20px; padding: 15px; background-color: #fff; border-left: 5px solid #88c0d0;">
-                    <p style="margin-top: 0; font-weight: bold;">📌 原始事件描述：</p>
-                    <p style="white-space: pre-wrap;">{content}</p>
+                    <p style="margin-top: 0; font-weight: bold;">📌 原始事件描述：</p><p style="white-space: pre-wrap;">{content}</p>
                 </div>
-                <p style="font-size: 0.85rem; color: #777; margin-top: 20px;">※ 本信件由智慧輔導紀錄系統自動發送。</p>
+                <p style="font-size: 0.85rem; color: #777; margin-top: 20px;">※ 本信件由系統自動發送。</p>
             </div>
         </body>
         </html>
         """
         msg = MIMEText(html_body, 'html', 'utf-8')
-        msg['Subject'] = subject; msg['From'] = SENDER_EMAIL; msg['To'] = RECEIVER_EMAIL
+        msg['Subject'] = subject; msg['From'] = SENDER_EMAIL; msg['To'] = receiver_email
         with smtplib.SMTP("smtp.gmail.com", 587) as server:
             server.starttls(); server.login(SENDER_EMAIL, SENDER_PASSWORD); server.send_message(msg)
         return True
@@ -120,6 +119,7 @@ for key in ['analysis_1', 'analysis_2', 'risk_level', 'needs_confirm']:
 st.markdown('<h1 class="main-header">🏫 智慧輔導紀錄與親師生溝通系統</h1>', unsafe_allow_html=True)
 tab_input, tab_history, tab_report = st.tabs(["📝 觀察紀錄錄入", "🔍 個案歷程追蹤", "📊 數據彙整筆記"])
 
+# --- Tab 1: 錄入功能 ---
 with tab_input:
     c1, c2, c3 = st.columns([1.5, 1, 1])
     with c1: target_type = st.radio("【對象類型】", ["學生 (個人晤談)", "家長 (親師聯繫)"], horizontal=True)
@@ -159,13 +159,18 @@ with tab_input:
             except Exception as e: st.error(f"同步失敗：{e}")
         else: st.error("❌ 請輸入學生代號")
 
+    # --- 高風險處室選擇區 (僅在高風險同步後顯示) ---
     if st.session_state.needs_confirm:
-        st.markdown(f'<div class="confirm-alert"><h2 style="color:#ff4b4b;">🚨 緊急通報確認</h2><p>系統判定此案為<b>高風險</b>。是否發送 HTML 通報信件？</p></div>', unsafe_allow_html=True)
-        if st.button("🚀 確認發送緊急通報信"):
-            if send_alert_email(stu_id, category, raw_obs):
-                st.success("📩 HTML 通報信件已發送！")
-                st.session_state.needs_confirm = False
-            else: st.error("發信失敗。")
+        st.markdown(f'<div class="confirm-alert"><h2 style="color:#ff4b4b;">🚨 緊急通報確認 (高風險)</h2><p>請選擇要通報的處室：</p></div>', unsafe_allow_html=True)
+        sel_c1, sel_c2 = st.columns(2)
+        with sel_c1:
+            if st.button("🚔 通報學務處"):
+                if send_alert_email(stu_id, category, raw_obs, EMAIL_STUDENT_AFFAIRS, "學務處"):
+                    st.success("📩 已成功通報學務處！"); st.session_state.needs_confirm = False
+        with sel_c2:
+            if st.button("🌱 通報輔導室"):
+                if send_alert_email(stu_id, category, raw_obs, EMAIL_COUNSELING, "輔導室"):
+                    st.success("📩 已成功通報輔導室！"); st.session_state.needs_confirm = False
 
     st.divider()
     res_c1, res_c2 = st.columns(2)
@@ -174,15 +179,15 @@ with tab_input:
         st.markdown(f'<div class="result-box">{st.session_state.analysis_1}</div>', unsafe_allow_html=True)
     with res_c2:
         risk_color = "risk-high" if st.session_state.risk_level == "高" else ("risk-med" if st.session_state.risk_level == "中" else "risk-low")
-        st.markdown(f'<div class="column-header">⚠️ 風勢評估：<span class="risk-badge {risk_color}">{st.session_state.risk_level}</span></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="column-header">⚠️ 風險評估：<span class="risk-badge {risk_color}">{st.session_state.risk_level}</span></div>', unsafe_allow_html=True)
         st.markdown(f'<div class="result-box">{st.session_state.analysis_2}</div>', unsafe_allow_html=True)
 
+# --- Tab 2: 歷史紀錄 (維持不變) ---
 with tab_history:
     st.markdown("### 🔍 個案歷程追蹤")
     if st.button("🔄 刷新歷史紀錄"):
         try:
-            sheet = hub_engine.open(HUB_NAME).worksheet(SHEET_TAB)
-            data = sheet.get_all_records()
+            sheet = hub_engine.open(HUB_NAME).worksheet(SHEET_TAB); data = sheet.get_all_records()
             if data:
                 df = pd.DataFrame(data)
                 for _, row in df.iloc[::-1].iterrows():
@@ -192,8 +197,9 @@ with tab_history:
             else: st.info("尚無紀錄。")
         except Exception as e: st.error(f"讀取失敗：{e}")
 
+# --- Tab 3: 數據統計 (維持不變) ---
 with tab_report:
-    st.markdown("### 📊 輔導數據彙整")
+    st.markdown("### 📊 數據彙整筆記")
     if st.button("📈 重新生成統計圖表"):
         try:
             df = pd.DataFrame(hub_engine.open(HUB_NAME).worksheet(SHEET_TAB).get_all_records())
@@ -201,4 +207,4 @@ with tab_report:
                 st.write("#### 類別分布"); st.bar_chart(df['類別'].value_counts())
                 st.write("#### 最近 5 筆摘要"); st.table(df[['日期', '學生代號', '類別', '風險等級']].tail(5))
             else: st.info("尚無數據。")
-        except: st.error("讀取數據失敗。")
+        except: st.error("數據讀取失敗。")

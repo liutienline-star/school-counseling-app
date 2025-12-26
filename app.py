@@ -166,11 +166,11 @@ with tab_input:
         st.markdown(f'<div class="confirm-alert"><h2 style="color:#ff4b4b;">🚨 緊急通報確認 (高風險)</h2><p>請選擇要通報的處室：</p></div>', unsafe_allow_html=True)
         sel_c1, sel_c2 = st.columns(2)
         with sel_c1:
-            if st.button("🚔 通報學務處 霸凌、性別、中輟"):
+            if st.button("🚔 通報學務處 (霸凌、性別、中輟)"):
                 if send_alert_email(stu_id, category, raw_obs, EMAIL_STUDENT_AFFAIRS, "學務處"):
                     st.success("📩 已成功通報學務處！"); st.session_state.needs_confirm = False
         with sel_c2:
-            if st.button("🌱 通報輔導室 兒少、自殺、脆家"):
+            if st.button("🌱 通報輔導室 (兒少、自殺、脆家)"):
                 if send_alert_email(stu_id, category, raw_obs, EMAIL_COUNSELING, "輔導室"):
                     st.success("📩 已成功通報輔導室！"); st.session_state.needs_confirm = False
 
